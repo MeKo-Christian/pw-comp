@@ -35,3 +35,6 @@ csrc/*.o
 
 # Agents
 .claude/
+
+# Log files
+pw-comp.log

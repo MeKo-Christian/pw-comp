@@ -22,10 +22,11 @@ import "C"
 import (
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
-	"unsafe"
-	"time"
 	"sync"
+	"time"
+	"unsafe"
 )
 
 // Audio configuration
@@ -36,6 +37,12 @@ var (
 
 // Compressor instance
 var compressor *SoftKneeCompressor
+
+// export log_from_c
+//export log_from_c
+func log_from_c(msg *C.char) {
+	slog.Info("C-Side", "msg", C.GoString(msg))
+}
 
 // processAudioBuffer processes an INTERLEAVED audio buffer through the compressor (Go wrapper for tests)
 func processAudioBuffer(audio []float32) {
@@ -86,6 +93,7 @@ func main() {
 	makeupGain := flag.Float64("makeup", 0.0, "Manual makeup gain in dB (0 = auto)")
 	autoMakeup := flag.Bool("auto-makeup", true, "Enable automatic makeup gain")
 	noTUI := flag.Bool("no-tui", false, "Disable interactive TUI")
+	logFile := flag.String("log", "pw-comp.log", "Log file path")
 	showHelp := flag.Bool("help", false, "Show this help message")
 
 	flag.Parse()
@@ -100,8 +108,21 @@ func main() {
 		os.Exit(0)
 	}
 
+	// Setup logging
+	file, err := os.OpenFile(*logFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	if err != nil {
+		fmt.Printf("Failed to open log file: %v\n", err)
+		os.Exit(1)
+	}
+	defer file.Close()
+
+	logger := slog.New(slog.NewTextHandler(file, nil))
+	slog.SetDefault(logger)
+	slog.Info("Starting pw-comp", "args", os.Args)
+
 	// Initialize compressor with default settings
 	compressor = NewSoftKneeCompressor(float64(sampleRate), channels)
+	slog.Info("Compressor initialized", "defaultSampleRate", sampleRate, "channels", channels)
 
 	// Configure compressor parameters from command-line flags
 	compressor.SetThreshold(*threshold)
@@ -115,13 +136,16 @@ func main() {
 	} else {
 		compressor.SetAutoMakeup(*autoMakeup)
 	}
+	slog.Info("Parameters configured")
 
 	// Initialize PipeWire
 	C.pw_init(nil, nil)
+	slog.Info("PipeWire initialized")
 
 	// Create main loop
 	loop := C.pw_main_loop_new(nil)
 	if loop == nil {
+		slog.Error("Failed to create PipeWire main loop")
 		fmt.Println("ERROR: Failed to create PipeWire main loop")
 		return
 	}
@@ -129,14 +153,17 @@ func main() {
 	// Create a new PipeWire filter with separate ports for each channel
 	filterData := C.create_pipewire_filter(loop, C.int(channels))
 	if filterData == nil {
+		slog.Error("Failed to create PipeWire filter")
 		fmt.Println("ERROR: Failed to create PipeWire filter")
 		C.pw_main_loop_destroy(loop)
 		return
 	}
+	slog.Info("PipeWire filter created")
 
 	if *noTUI {
 		fmt.Println("Starting PipeWire Audio Compressor (pw-comp)...")
 		fmt.Println("TUI disabled. Running in headless mode.")
+		fmt.Println("Log file:", *logFile)
 		fmt.Println("Press Ctrl+C to exit.")
 		
 		// Run in main thread
@@ -148,7 +175,9 @@ func main() {
 		// Run PipeWire loop in background
 		go func() {
 			defer wg.Done()
+			slog.Info("Starting PipeWire main loop")
 			C.pw_main_loop_run(loop)
+			slog.Info("PipeWire main loop exited")
 		}()
 		
 		// Give PipeWire a moment to start (optional)
@@ -158,6 +187,7 @@ func main() {
 		runTUI(compressor)
 		
 		// When TUI returns, quit PipeWire loop
+		slog.Info("TUI exited, stopping PipeWire loop")
 		C.pw_main_loop_quit(loop)
 
 		// Wait for PipeWire loop to finish cleaning up its internal state
@@ -167,4 +197,5 @@ func main() {
 	// Cleanup
 	C.destroy_pipewire_filter(filterData)
 	C.pw_main_loop_destroy(loop)
+	slog.Info("Shutdown complete")
 }

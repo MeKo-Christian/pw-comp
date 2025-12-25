@@ -12,6 +12,7 @@
 #include <spa/pod/parser.h>
 
 extern void process_channel_go(float *in, float *out, int samples, int sample_rate, int channel_index);
+extern void log_from_c(char *msg);
 
 // Structure to hold port-specific data
 struct port_data {

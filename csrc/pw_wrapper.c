@@ -8,14 +8,19 @@
 
 // Go function
 extern void process_channel_go(float *in, float *out, int samples, int sample_rate, int channel_index);
+extern void log_from_c(char *msg);
 
 // State listener callback
 static void on_state_changed(void *data, enum pw_filter_state old, enum pw_filter_state state, const char *error) {
-    fprintf(stderr, "Filter State Change: %s -> %s\n", 
+    char msg[256];
+    snprintf(msg, sizeof(msg), "State change: %s -> %s", 
         pw_filter_state_as_string(old), 
         pw_filter_state_as_string(state));
+    log_from_c(msg);
+    
     if (error) {
-        fprintf(stderr, "Filter Error: %s\n", error);
+        snprintf(msg, sizeof(msg), "Error: %s", error);
+        log_from_c(msg);
     }
 }
 
@@ -24,6 +29,8 @@ static void on_process(void *userdata, struct spa_io_position *position) {
     struct pw_filter_data *data = userdata;
     uint32_t n_samples;
     uint32_t sample_rate = 48000;
+    static int process_cnt = 0;
+    process_cnt++;
 
     if (position != NULL) {
         n_samples = position->clock.duration;
@@ -32,22 +39,36 @@ static void on_process(void *userdata, struct spa_io_position *position) {
     } else {
         return;
     }
+    
+    if (process_cnt < 20 || process_cnt % 100 == 0) {
+        char msg[128];
+        snprintf(msg, sizeof(msg), "Process %d: samples=%u rate=%u", process_cnt, n_samples, sample_rate);
+        log_from_c(msg);
+    }
 
     // Process each channel
     for (int i = 0; i < data->channels; i++) {
         struct pw_buffer *in_buf = pw_filter_dequeue_buffer(data->in_ports[i]->port);
         struct pw_buffer *out_buf = pw_filter_dequeue_buffer(data->out_ports[i]->port);
+        
+        if (process_cnt < 20) {
+            char msg[128];
+            snprintf(msg, sizeof(msg), "  CH%d: in=%p out=%p", i, in_buf, out_buf);
+            log_from_c(msg);
+        }
 
-        // If output port is not connected or has no buffer, we can't output anything.
-        // We still need to recycle input if we got it.
         if (out_buf == NULL) {
+            if (process_cnt < 50 && process_cnt % 10 == 0) {
+                 char msg[128];
+                 snprintf(msg, sizeof(msg), "WARNING: CH%d Output buffer is NULL (Unconnected?)", i);
+                 log_from_c(msg);
+            }
             if (in_buf) pw_filter_queue_buffer(data->in_ports[i]->port, in_buf);
             continue;
         }
 
         float *out = pw_filter_get_dsp_buffer(data->out_ports[i]->port, n_samples);
         if (out == NULL) {
-             // Should not happen if out_buf is valid
              pw_filter_queue_buffer(data->out_ports[i]->port, out_buf);
              if (in_buf) pw_filter_queue_buffer(data->in_ports[i]->port, in_buf);
              continue;
@@ -59,13 +80,8 @@ static void on_process(void *userdata, struct spa_io_position *position) {
         }
 
         if (in) {
-            // Normal processing: In -> Out
             process_channel_go(in, out, n_samples, (int)sample_rate, i);
         } else {
-            // Missing input: Treat as silence.
-            // We fill output with zeros, then process it in-place.
-            // This ensures the compressor's internal state (envelopes) decay naturally
-            // and meters show silence instead of freezing.
             memset(out, 0, n_samples * sizeof(float));
             process_channel_go(out, out, n_samples, (int)sample_rate, i);
         }
@@ -86,17 +102,17 @@ static void get_channel_config(int i, int total, char *name, size_t max_len, uin
     if (total == 2) {
         if (i == 0) {
             snprintf(name, max_len, "FL");
-            *pos = SPA_AUDIO_CHANNEL_FL;
+            *pos = SPA_AUDIO_CHANNEL_MONO;
         } else {
             snprintf(name, max_len, "FR");
-            *pos = SPA_AUDIO_CHANNEL_FR;
+            *pos = SPA_AUDIO_CHANNEL_MONO;
         }
     } else if (total == 1) {
         snprintf(name, max_len, "MONO");
         *pos = SPA_AUDIO_CHANNEL_MONO;
     } else {
         snprintf(name, max_len, "CH%d", i+1);
-        *pos = SPA_AUDIO_CHANNEL_UNKNOWN;
+        *pos = SPA_AUDIO_CHANNEL_MONO;
     }
 }
 
@@ -138,13 +154,11 @@ struct pw_filter_data* create_pipewire_filter(struct pw_main_loop *loop, int cha
 
     pw_filter_add_listener(data->filter, &data->filter_listener, &filter_events, data);
 
-    // Allocate port arrays
     data->in_ports = calloc(channels, sizeof(struct port_data*));
     data->out_ports = calloc(channels, sizeof(struct port_data*));
 
     uint8_t buffer[1024];
 
-    // Create ports for each channel
     for (int i = 0; i < channels; i++) {
         char ch_name[32];
         uint32_t ch_pos;
@@ -153,22 +167,21 @@ struct pw_filter_data* create_pipewire_filter(struct pw_main_loop *loop, int cha
         struct spa_pod_builder b = SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
         const struct spa_pod *params[1];
 
-        // Format for THIS port: 1 channel, specific position, ANY rate
+        // Format: 1 channel, F32 ONLY (Simplified), Rate Range, MONO Position
         uint32_t positions[1] = { ch_pos };
         
         params[0] = spa_pod_builder_add_object(&b,
             SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat,
             SPA_FORMAT_mediaType, SPA_POD_Id(SPA_MEDIA_TYPE_audio),
             SPA_FORMAT_mediaSubtype, SPA_POD_Id(SPA_MEDIA_SUBTYPE_raw),
-            SPA_FORMAT_AUDIO_format, SPA_POD_Id(SPA_AUDIO_FORMAT_F32),
-            SPA_FORMAT_AUDIO_rate, SPA_POD_CHOICE_RANGE_Int(48000, 1, 384000), 
+            SPA_FORMAT_AUDIO_format, SPA_POD_Id(SPA_AUDIO_FORMAT_F32), // Strictly F32 Interleaved (1 ch = same as planar)
+            SPA_FORMAT_AUDIO_rate, SPA_POD_CHOICE_RANGE_Int(48000, 1, 384000),
             SPA_FORMAT_AUDIO_channels, SPA_POD_Int(1),
             SPA_FORMAT_AUDIO_position, SPA_POD_Array(sizeof(uint32_t), SPA_TYPE_Id, 1, positions),
             0);
 
         char port_name[64];
         
-        // Input Port
         data->in_ports[i] = calloc(1, sizeof(struct port_data));
         snprintf(port_name, sizeof(port_name), "input_%s", ch_name);
         
@@ -183,7 +196,6 @@ struct pw_filter_data* create_pipewire_filter(struct pw_main_loop *loop, int cha
                 NULL),
             params, 1);
 
-        // Output Port
         data->out_ports[i] = calloc(1, sizeof(struct port_data));
         snprintf(port_name, sizeof(port_name), "output_%s", ch_name);
 
@@ -199,15 +211,16 @@ struct pw_filter_data* create_pipewire_filter(struct pw_main_loop *loop, int cha
             params, 1);
     }
 
-    // Connect
     struct spa_pod_builder b_lat = SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
     const struct spa_pod *connect_params[1];
     connect_params[0] = spa_process_latency_build(&b_lat,
         SPA_PARAM_ProcessLatency,
-        &SPA_PROCESS_LATENCY_INFO_INIT(.ns = 10 * SPA_NSEC_PER_MSEC));
+        &SPA_PROCESS_LATENCY_INFO_INIT(.ns = 1024 * SPA_NSEC_PER_SEC / 48000)); // ~21ms
 
     if (pw_filter_connect(data->filter, PW_FILTER_FLAG_RT_PROCESS, connect_params, 1) < 0) {
-        fprintf(stderr, "ERROR: Failed to connect filter\n");
+        char err_msg[] = "Failed to connect filter";
+        log_from_c(err_msg);
+        fprintf(stderr, "ERROR: %s\n", err_msg);
         destroy_pipewire_filter(data);
         return NULL;
     }

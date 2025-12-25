@@ -206,16 +206,27 @@ func (c *SoftKneeCompressor) processSampleInternal(sample float32, channel int) 
 	}
 
 	inputLevel := math.Abs(float64(sample))
+	if math.IsNaN(inputLevel) {
+		inputLevel = 0 // Sanitize
+	}
 
 	if inputLevel > c.peak[channel] {
 		c.peak[channel] += (inputLevel - c.peak[channel]) * c.attackFactor
 	} else {
 		c.peak[channel] = inputLevel + (c.peak[channel]-inputLevel)*c.releaseFactor
 	}
+	
+	if math.IsNaN(c.peak[channel]) {
+		c.peak[channel] = 0 // Safety reset
+	}
 
 	gain := c.calculateGain(c.peak[channel])
+	if math.IsNaN(gain) {
+		gain = 1.0
+	}
+	
 	output := float32(float64(sample) * gain * c.makeupGainLin)
-
+	
 	return output, gain
 }
 
@@ -241,6 +252,11 @@ func (c *SoftKneeCompressor) ProcessBlock(in []float32, out []float32, channel i
 	minGain := 1.0
 
 	for i := 0; i < len(in); i++ {
+		// NaN Check
+		if math.IsNaN(float64(in[i])) || math.IsInf(float64(in[i]), 0) {
+			in[i] = 0
+		}
+
 		// Calculate meters
 		absIn := math.Abs(float64(in[i]))
 		if absIn > maxInput {
@@ -248,6 +264,12 @@ func (c *SoftKneeCompressor) ProcessBlock(in []float32, out []float32, channel i
 		}
 
 		processed, gain := c.processSampleInternal(in[i], channel)
+		
+		// NaN Check Output
+		if math.IsNaN(float64(processed)) || math.IsInf(float64(processed), 0) {
+			processed = 0
+		}
+		
 		out[i] = processed
 
 		absOut := math.Abs(float64(processed))
