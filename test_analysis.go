@@ -50,13 +50,15 @@ func DBFSToLinear(dbfs float64) float64 {
 }
 
 // MeasureGainReduction compares input and output buffers to calculate gain reduction.
-func MeasureGainReduction(input, output []float32) (inputRMS, outputRMS, gainReductionDB float64) {
+func MeasureGainReduction(input, output []float32) (float64, float64, float64) {
 	if len(input) != len(output) {
 		panic("input and output buffers must have same length")
 	}
 
-	inputRMS = CalculateRMS(input)
-	outputRMS = CalculateRMS(output)
+	inputRMS := CalculateRMS(input)
+	outputRMS := CalculateRMS(output)
+
+	var gainReductionDB float64
 
 	if inputRMS > 0 && outputRMS > 0 {
 		inputDB := LinearToDBFS(inputRMS)

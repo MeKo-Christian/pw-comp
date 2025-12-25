@@ -87,14 +87,14 @@ func InterleaveChannels(left, right []float32) []float32 {
 }
 
 // DeinterleaveChannels splits a stereo interleaved buffer into two mono buffers.
-func DeinterleaveChannels(interleaved []float32) (left, right []float32) {
+func DeinterleaveChannels(interleaved []float32) ([]float32, []float32) {
 	if len(interleaved)%2 != 0 {
 		panic("interleaved buffer must have even length")
 	}
 
 	frames := len(interleaved) / 2
-	left = make([]float32, frames)
-	right = make([]float32, frames)
+	left := make([]float32, frames)
+	right := make([]float32, frames)
 
 	for i := range frames {
 		left[i] = interleaved[i*2]

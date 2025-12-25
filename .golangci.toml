@@ -16,8 +16,18 @@ disable = [
 enable = ['wsl_v5']
 
 [linters.settings]
+[linters.settings.cyclop]
+max-complexity = 15
+
+[linters.settings.funlen]
+lines = 90
+statements = 70
+
+[linters.settings.gocognit]
+min-complexity = 60
+
 [linters.settings.varnamelen]
-ignore-names = ['i', 'j', 'n', 'ok', 'db', 'id']
+ignore-names = ['i', 'j', 'n', 'ok', 'db', 'id', 'in', 'ev', 's']
 
 [linters.settings.wsl_v5]
 allow-first-in-block = true
@@ -32,6 +42,16 @@ presets = ['comments', 'common-false-positives', 'legacy', 'std-error-handling']
 [[linters.exclusions.rules]]
 linters = ['gosec']
 text = 'G601:'
+
+[[linters.exclusions.rules]]
+linters = ['gochecknoglobals']
+path = 'main\.go'
+text = '(channels|sampleRate|compressor) is a global variable'
+
+[[linters.exclusions.rules]]
+linters = ['gochecknoglobals']
+path = 'tui\.go'
+text = 'paramNames is a global variable'
 
 [severity]
 default = 'warn'

@@ -79,6 +79,7 @@ func runTUI(comp *SoftKneeCompressor) {
 	}
 }
 
+//nolint:gocyclo,cyclop,funlen // UI event handler with multiple parameter cases
 func handleKey(ev termbox.Event, s *TUIState) {
 	if ev.Key == termbox.KeyEsc || ev.Ch == 'q' {
 		s.exit = true
@@ -190,10 +191,10 @@ func handleKey(ev termbox.Event, s *TUIState) {
 	}
 }
 
-func draw(s *TUIState) {
+func draw(state *TUIState) {
 	_ = termbox.Clear(colDef, colDef)
 
-	meters := s.comp.GetMeters()
+	meters := state.comp.GetMeters()
 
 	// Header
 	printTB(0, 0, colCyan, colDef, "PipeWire Audio Compressor (pw-comp) - Interactive Mode")
@@ -203,25 +204,25 @@ func draw(s *TUIState) {
 	printTB(0, 3, colDef, colDef, "----------------------------------------------------")
 
 	// Parameters
-	s.comp.mu.Lock()
+	state.comp.mu.Lock()
 	vals := []string{
-		fmt.Sprintf("%.1f", s.comp.thresholdDB),
-		fmt.Sprintf("%.1f", s.comp.ratio),
-		fmt.Sprintf("%.1f", s.comp.kneeDB),
-		fmt.Sprintf("%.1f", s.comp.attackMs),
-		fmt.Sprintf("%.1f", s.comp.releaseMs),
-		fmt.Sprintf("%.1f", s.comp.makeupGainDB),
-		strconv.FormatBool(s.comp.autoMakeup),
-		strconv.FormatBool(s.comp.bypass),
+		fmt.Sprintf("%.1f", state.comp.thresholdDB),
+		fmt.Sprintf("%.1f", state.comp.ratio),
+		fmt.Sprintf("%.1f", state.comp.kneeDB),
+		fmt.Sprintf("%.1f", state.comp.attackMs),
+		fmt.Sprintf("%.1f", state.comp.releaseMs),
+		fmt.Sprintf("%.1f", state.comp.makeupGainDB),
+		strconv.FormatBool(state.comp.autoMakeup),
+		strconv.FormatBool(state.comp.bypass),
 	}
-	s.comp.mu.Unlock()
+	state.comp.mu.Unlock()
 
 	for i, name := range paramNames {
 		col := colWhite
 		bgColor := colDef
 		prefix := "  "
 
-		if i == s.selectedParam {
+		if i == state.selectedParam {
 			col = colDef       // Black usually if bg is white
 			bgColor = colWhite // Highlight
 			prefix = "> "
@@ -231,8 +232,8 @@ func draw(s *TUIState) {
 	}
 
 	// Metering
-	y := 15
-	printTB(0, y, colYellow, colDef, "Meters:")
+	meterY := 15
+	printTB(0, meterY, colYellow, colDef, "Meters:")
 
 	// Convert linear to dB for display
 	linToDB := func(l float64) float64 {
@@ -250,8 +251,8 @@ func draw(s *TUIState) {
 	grL := linToDB(meters.GainReductionL)
 	grR := linToDB(meters.GainReductionR)
 
-	drawMeter(2, y+2, "In L ", inL, colGreen)
-	drawMeter(2, y+3, "In R ", inR, colGreen)
+	drawMeter(meterY+2, "In L ", inL, colGreen)
+	drawMeter(meterY+3, "In R ", inR, colGreen)
 
 	grLeftDisp := -grL
 	grRightDisp := -grR
@@ -264,20 +265,23 @@ func draw(s *TUIState) {
 		grRightDisp = 0
 	}
 
-	drawMeter(2, y+5, "GR L ", grLeftDisp, colRed)
-	drawMeter(2, y+6, "GR R ", grRightDisp, colRed)
+	drawMeter(meterY+5, "GR L ", grLeftDisp, colRed)
+	drawMeter(meterY+6, "GR R ", grRightDisp, colRed)
 
-	drawMeter(2, y+8, "Out L", outL, colBlue)
-	drawMeter(2, y+9, "Out R", outR, colBlue)
+	drawMeter(meterY+8, "Out L", outL, colBlue)
+	drawMeter(meterY+9, "Out R", outR, colBlue)
 
 	termbox.Flush()
 }
 
-func drawMeter(x, y int, label string, db float64, color termbox.Attribute) {
-	// Range -96 to +6 for levels.
-	// 0 to 30 for GR.
-	barWidth := 60
-	filled := 0
+func drawMeter(yPos int, label string, db float64, color termbox.Attribute) {
+	// Range -96 to +6 for levels, 0 to 30 for GR.
+	const (
+		barWidth = 60
+		xPos     = 2
+	)
+
+	var filled int
 
 	if color == colRed {
 		// GR logic: 0 to 24 dB range
@@ -305,10 +309,10 @@ func drawMeter(x, y int, label string, db float64, color termbox.Attribute) {
 		filled = int(ratio * float64(barWidth))
 	}
 
-	printTB(x, y, colDef, colDef, fmt.Sprintf("%s [%-6.1f dB] ", label, db))
+	printTB(xPos, yPos, colDef, colDef, fmt.Sprintf("%s [%-6.1f dB] ", label, db))
 
 	// Draw bar
-	startX := x + 15
+	startX := xPos + 15
 
 	for i := range barWidth {
 		var barChar rune
@@ -320,7 +324,7 @@ func drawMeter(x, y int, label string, db float64, color termbox.Attribute) {
 			barChar = '░'
 		}
 
-		termbox.SetCell(startX+i, y, barChar, color, bgCol)
+		termbox.SetCell(startX+i, yPos, barChar, color, bgCol)
 	}
 }
 
