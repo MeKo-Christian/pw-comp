@@ -183,70 +183,7 @@ func (c *SoftKneeCompressor) SetSampleRate(rate float64) {
 	}
 }
 
-// updateTimeConstants recalculates attack and release coefficients (internal, assumes lock held).
-func (c *SoftKneeCompressor) updateTimeConstants() {
-	c.attackFactor = 1.0 - math.Exp(-math.Ln2/(c.attackMs*0.001*c.sampleRate))
-	c.releaseFactor = math.Exp(-math.Ln2 / (c.releaseMs * 0.001 * c.sampleRate))
-}
-
-// updateParameters recalculates all internal cached values (internal, assumes lock held).
-func (c *SoftKneeCompressor) updateParameters() {
-	c.threshold = math.Pow(10.0, c.thresholdDB/20.0)
-	c.thresholdRecip = 1.0 / c.threshold
-
-	kneeHalfDB := c.kneeDB / 2.0
-	c.kneeLower = math.Pow(10.0, (c.thresholdDB-kneeHalfDB)/20.0)
-	c.kneeUpper = math.Pow(10.0, (c.thresholdDB+kneeHalfDB)/20.0)
-	c.kneeWidth = c.kneeUpper - c.kneeLower
-
-	c.slopeRecip = 1.0/c.ratio - 1.0
-
-	if c.autoMakeup {
-		gainReductionDB := c.thresholdDB * (1.0 - 1.0/c.ratio)
-		c.makeupGainDB = -gainReductionDB
-	}
-
-	c.makeupGainLin = math.Pow(10.0, c.makeupGainDB/20.0)
-	c.updateTimeConstants()
-}
-
-// ProcessSample processes a single sample (internal DSP logic, called by ProcessBlock)
-// Assumes caller holds lock or is single-threaded context (tests).
-func (c *SoftKneeCompressor) processSampleInternal(sample float32, channel int) (float32, float64) {
-	if c.bypass {
-		return sample, 1.0
-	}
-
-	if channel < 0 || channel >= c.channels {
-		return sample, 1.0
-	}
-
-	inputLevel := math.Abs(float64(sample))
-	if math.IsNaN(inputLevel) {
-		inputLevel = 0 // Sanitize
-	}
-
-	if inputLevel > c.peak[channel] {
-		c.peak[channel] += (inputLevel - c.peak[channel]) * c.attackFactor
-	} else {
-		c.peak[channel] = inputLevel + (c.peak[channel]-inputLevel)*c.releaseFactor
-	}
-
-	if math.IsNaN(c.peak[channel]) {
-		c.peak[channel] = 0 // Safety reset
-	}
-
-	gain := c.calculateGain(c.peak[channel])
-	if math.IsNaN(gain) {
-		gain = 1.0
-	}
-
-	output := float32(float64(sample) * gain * c.makeupGainLin)
-
-	return output, gain
-}
-
-// Public ProcessSample for tests (wraps internal with lock).
+// ProcessSample processes a single sample for tests (wraps internal with lock).
 func (c *SoftKneeCompressor) ProcessSample(sample float32, channel int) float32 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -315,23 +252,6 @@ func (c *SoftKneeCompressor) ProcessBlock(in []float32, out []float32, channel i
 	}
 }
 
-// calculateGain computes the gain multiplier.
-func (c *SoftKneeCompressor) calculateGain(peakLevel float64) float64 {
-	if peakLevel <= c.kneeLower {
-		return 1.0
-	}
-
-	if peakLevel >= c.kneeUpper {
-		return math.Pow(c.threshold/peakLevel, 1.0-1.0/c.ratio)
-	}
-
-	kneePos := (peakLevel - c.kneeLower) / c.kneeWidth
-	smoothFactor := kneePos * kneePos * (3.0 - 2.0*kneePos)
-	compressedGain := math.Pow(c.threshold/c.kneeUpper, 1.0-1.0/c.ratio)
-
-	return 1.0 + (compressedGain-1.0)*smoothFactor
-}
-
 // Reset clears the internal state.
 func (c *SoftKneeCompressor) Reset() {
 	c.mu.Lock()
@@ -359,4 +279,84 @@ func (c *SoftKneeCompressor) GetMeters() MeterStats {
 		Blocks:         atomic.LoadUint64(&c.processedBlocks),
 		SampleRate:     sampleRate,
 	}
+}
+
+// updateTimeConstants recalculates attack and release coefficients (internal, assumes lock held).
+func (c *SoftKneeCompressor) updateTimeConstants() {
+	c.attackFactor = 1.0 - math.Exp(-math.Ln2/(c.attackMs*0.001*c.sampleRate))
+	c.releaseFactor = math.Exp(-math.Ln2 / (c.releaseMs * 0.001 * c.sampleRate))
+}
+
+// updateParameters recalculates all internal cached values (internal, assumes lock held).
+func (c *SoftKneeCompressor) updateParameters() {
+	c.threshold = math.Pow(10.0, c.thresholdDB/20.0)
+	c.thresholdRecip = 1.0 / c.threshold
+
+	kneeHalfDB := c.kneeDB / 2.0
+	c.kneeLower = math.Pow(10.0, (c.thresholdDB-kneeHalfDB)/20.0)
+	c.kneeUpper = math.Pow(10.0, (c.thresholdDB+kneeHalfDB)/20.0)
+	c.kneeWidth = c.kneeUpper - c.kneeLower
+
+	c.slopeRecip = 1.0/c.ratio - 1.0
+
+	if c.autoMakeup {
+		gainReductionDB := c.thresholdDB * (1.0 - 1.0/c.ratio)
+		c.makeupGainDB = -gainReductionDB
+	}
+
+	c.makeupGainLin = math.Pow(10.0, c.makeupGainDB/20.0)
+	c.updateTimeConstants()
+}
+
+// processSampleInternal processes a single sample (internal DSP logic, called by ProcessBlock).
+// Assumes caller holds lock or is single-threaded context (tests).
+func (c *SoftKneeCompressor) processSampleInternal(sample float32, channel int) (float32, float64) {
+	if c.bypass {
+		return sample, 1.0
+	}
+
+	if channel < 0 || channel >= c.channels {
+		return sample, 1.0
+	}
+
+	inputLevel := math.Abs(float64(sample))
+	if math.IsNaN(inputLevel) {
+		inputLevel = 0 // Sanitize
+	}
+
+	if inputLevel > c.peak[channel] {
+		c.peak[channel] += (inputLevel - c.peak[channel]) * c.attackFactor
+	} else {
+		c.peak[channel] = inputLevel + (c.peak[channel]-inputLevel)*c.releaseFactor
+	}
+
+	if math.IsNaN(c.peak[channel]) {
+		c.peak[channel] = 0 // Safety reset
+	}
+
+	gain := c.calculateGain(c.peak[channel])
+	if math.IsNaN(gain) {
+		gain = 1.0
+	}
+
+	output := float32(float64(sample) * gain * c.makeupGainLin)
+
+	return output, gain
+}
+
+// calculateGain computes the gain multiplier.
+func (c *SoftKneeCompressor) calculateGain(peakLevel float64) float64 {
+	if peakLevel <= c.kneeLower {
+		return 1.0
+	}
+
+	if peakLevel >= c.kneeUpper {
+		return math.Pow(c.threshold/peakLevel, 1.0-1.0/c.ratio)
+	}
+
+	kneePos := (peakLevel - c.kneeLower) / c.kneeWidth
+	smoothFactor := kneePos * kneePos * (3.0 - 2.0*kneePos)
+	compressedGain := math.Pow(c.threshold/c.kneeUpper, 1.0-1.0/c.ratio)
+
+	return 1.0 + (compressedGain-1.0)*smoothFactor
 }

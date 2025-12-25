@@ -4,7 +4,7 @@ package main
 
 /*
 #cgo CFLAGS: -I./csrc -I/usr/include/pipewire-0.3 -I/usr/include/spa-0.2
-#cgo LDFLAGS: -L. -lpw_wrapper -lpipewire-0.3
+#cgo LDFLAGS: -L${SRCDIR} -Wl,-rpath,${SRCDIR} -lpw_wrapper -lpipewire-0.3
 
 #include <pipewire/pipewire.h>
 #include <spa/param/audio/format-utils.h>

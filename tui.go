@@ -197,7 +197,8 @@ func draw(s *TUIState) {
 
 	// Header
 	printTB(0, 0, colCyan, colDef, "PipeWire Audio Compressor (pw-comp) - Interactive Mode")
-	printTB(0, 1, colWhite, colDef, fmt.Sprintf("Sample Rate: %.0f Hz | Processed Blocks: %d", meters.SampleRate, meters.Blocks))
+	printTB(0, 1, colWhite, colDef,
+		fmt.Sprintf("Sample Rate: %.0f Hz | Processed Blocks: %d", meters.SampleRate, meters.Blocks))
 	printTB(0, 2, colDef, colDef, "Use Arrows to navigate/adjust. 'q' or Esc to quit.")
 	printTB(0, 3, colDef, colDef, "----------------------------------------------------")
 
