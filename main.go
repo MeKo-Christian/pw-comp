@@ -57,8 +57,8 @@ func processAudioBuffer(audio []float32) {
 
 	samplesPerChannel := len(audio) / channels
 
-	for i := 0; i < samplesPerChannel; i++ {
-		for ch := 0; ch < channels; ch++ {
+	for i := range samplesPerChannel {
+		for ch := range channels {
 			index := i*channels + ch
 			audio[index] = compressor.ProcessSample(audio[index], ch)
 		}
@@ -175,12 +175,12 @@ func main() {
 		// Run in main thread
 		C.pw_main_loop_run(loop)
 	} else {
-		var wg sync.WaitGroup
-		wg.Add(1)
+		var waitGroup sync.WaitGroup
+		waitGroup.Add(1)
 
 		// Run PipeWire loop in background
 		go func() {
-			defer wg.Done()
+			defer waitGroup.Done()
 			slog.Info("Starting PipeWire main loop")
 			C.pw_main_loop_run(loop)
 			slog.Info("PipeWire main loop exited")
@@ -197,7 +197,7 @@ func main() {
 		C.pw_main_loop_quit(loop)
 
 		// Wait for PipeWire loop to finish cleaning up its internal state
-		wg.Wait()
+		waitGroup.Wait()
 	}
 
 	// Cleanup

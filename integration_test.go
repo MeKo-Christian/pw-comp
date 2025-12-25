@@ -41,6 +41,7 @@ func setupTestCompressor() {
 
 // A. Buffer Handling Tests
 
+//nolint:paralleltest // integration tests use shared global compressor state
 func TestIntegration_SilencePassthrough(t *testing.T) {
 	setupTestCompressor()
 
@@ -57,6 +58,7 @@ func TestIntegration_SilencePassthrough(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // integration tests use shared global compressor state
 func TestIntegration_ValidBufferSizes(t *testing.T) {
 	setupTestCompressor()
 
@@ -82,6 +84,7 @@ func TestIntegration_ValidBufferSizes(t *testing.T) {
 
 // B. Compression Behavior Tests
 
+//nolint:paralleltest // integration tests use shared global compressor state
 func TestIntegration_BelowThreshold_NoCompression(t *testing.T) {
 	setupTestCompressor()
 
@@ -110,6 +113,7 @@ func TestIntegration_BelowThreshold_NoCompression(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // integration tests use shared global compressor state
 func TestIntegration_AboveThreshold_HasCompression(t *testing.T) {
 	setupTestCompressor()
 
@@ -148,6 +152,7 @@ func TestIntegration_AboveThreshold_HasCompression(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // integration tests use shared global compressor state
 func TestIntegration_CompressionRatio_Verification(t *testing.T) {
 	setupTestCompressor()
 
@@ -190,6 +195,7 @@ func TestIntegration_CompressionRatio_Verification(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // integration tests use shared global compressor state
 func TestIntegration_MakeupGain(t *testing.T) {
 	setupTestCompressor()
 
@@ -224,6 +230,7 @@ func TestIntegration_MakeupGain(t *testing.T) {
 
 // C. Stereo Processing Tests
 
+//nolint:paralleltest // integration tests use shared global compressor state
 func TestIntegration_StereoChannelIndependence_LeftOnly(t *testing.T) {
 	setupTestCompressor()
 
@@ -260,6 +267,7 @@ func TestIntegration_StereoChannelIndependence_LeftOnly(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // integration tests use shared global compressor state
 func TestIntegration_StereoChannelIndependence_DifferentSignals(t *testing.T) {
 	setupTestCompressor()
 
@@ -307,6 +315,7 @@ func TestIntegration_StereoChannelIndependence_DifferentSignals(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // integration tests use shared global compressor state
 func TestIntegration_StereoPhaseCoherence(t *testing.T) {
 	setupTestCompressor()
 
@@ -348,6 +357,7 @@ func TestIntegration_StereoPhaseCoherence(t *testing.T) {
 
 // D. Dynamic Response Tests
 
+//nolint:paralleltest // integration tests use shared global compressor state
 func TestIntegration_AttackResponse(t *testing.T) {
 	setupTestCompressor()
 
@@ -385,6 +395,7 @@ func TestIntegration_AttackResponse(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // integration tests use shared global compressor state
 func TestIntegration_ContinuousProcessing_StateCarryover(t *testing.T) {
 	setupTestCompressor()
 
@@ -422,6 +433,7 @@ func TestIntegration_ContinuousProcessing_StateCarryover(t *testing.T) {
 
 // E. Edge Cases & Robustness
 
+//nolint:paralleltest // integration tests use shared global compressor state
 func TestIntegration_FullScaleSignal_NoClipping(t *testing.T) {
 	setupTestCompressor()
 
@@ -451,6 +463,7 @@ func TestIntegration_FullScaleSignal_NoClipping(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // integration tests use shared global compressor state
 func TestIntegration_ParameterChangeMidStream(t *testing.T) {
 	setupTestCompressor()
 
@@ -491,6 +504,7 @@ func TestIntegration_ParameterChangeMidStream(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // integration tests use shared global compressor state
 func TestIntegration_RealisticBufferSizes(t *testing.T) {
 	setupTestCompressor()
 

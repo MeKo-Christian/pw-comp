@@ -61,7 +61,7 @@ type SoftKneeCompressor struct {
 
 // NewSoftKneeCompressor creates a new compressor with default settings.
 func NewSoftKneeCompressor(sampleRate float64, channels int) *SoftKneeCompressor {
-	c := &SoftKneeCompressor{
+	compressor := &SoftKneeCompressor{
 		thresholdDB:     -20.0,
 		ratio:           4.0,
 		kneeDB:          6.0,
@@ -75,9 +75,9 @@ func NewSoftKneeCompressor(sampleRate float64, channels int) *SoftKneeCompressor
 		peak:            make([]float64, channels),
 		processedBlocks: 0,
 	}
-	c.updateParameters()
+	compressor.updateParameters()
 
-	return c
+	return compressor
 }
 
 // SetThreshold sets the compression threshold in dB.
@@ -116,28 +116,28 @@ func (c *SoftKneeCompressor) SetKnee(dB float64) {
 }
 
 // SetAttack sets the attack time in milliseconds.
-func (c *SoftKneeCompressor) SetAttack(ms float64) {
+func (c *SoftKneeCompressor) SetAttack(timeMs float64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if ms < 0.1 {
-		ms = 0.1
+	if timeMs < 0.1 {
+		timeMs = 0.1
 	}
 
-	c.attackMs = ms
+	c.attackMs = timeMs
 	c.updateTimeConstants()
 }
 
 // SetRelease sets the release time in milliseconds.
-func (c *SoftKneeCompressor) SetRelease(ms float64) {
+func (c *SoftKneeCompressor) SetRelease(timeMs float64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if ms < 1.0 {
-		ms = 1.0
+	if timeMs < 1.0 {
+		timeMs = 1.0
 	}
 
-	c.releaseMs = ms
+	c.releaseMs = timeMs
 	c.updateTimeConstants()
 }
 
@@ -344,7 +344,7 @@ func (c *SoftKneeCompressor) Reset() {
 func (c *SoftKneeCompressor) GetMeters() MeterStats {
 	// Sample rate requires lock
 	c.mu.Lock()
-	sr := c.sampleRate
+	sampleRate := c.sampleRate
 	c.mu.Unlock()
 
 	return MeterStats{
@@ -355,6 +355,6 @@ func (c *SoftKneeCompressor) GetMeters() MeterStats {
 		GainReductionL: math.Float64frombits(atomic.LoadUint64(&c.gainReductionL)),
 		GainReductionR: math.Float64frombits(atomic.LoadUint64(&c.gainReductionR)),
 		Blocks:         atomic.LoadUint64(&c.processedBlocks),
-		SampleRate:     sr,
+		SampleRate:     sampleRate,
 	}
 }

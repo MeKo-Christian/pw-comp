@@ -216,16 +216,16 @@ func draw(s *TUIState) {
 
 	for i, name := range paramNames {
 		col := colWhite
-		bg := colDef
+		bgColor := colDef
 		prefix := "  "
 
 		if i == s.selectedParam {
-			col = colDef  // Black usually if bg is white
-			bg = colWhite // Highlight
+			col = colDef       // Black usually if bg is white
+			bgColor = colWhite // Highlight
 			prefix = "> "
 		}
 
-		printTB(0, 5+i, col, bg, fmt.Sprintf("% -20s %s", prefix+name, vals[i]))
+		printTB(0, 5+i, col, bgColor, fmt.Sprintf("% -20s %s", prefix+name, vals[i]))
 	}
 
 	// Metering
@@ -237,6 +237,7 @@ func draw(s *TUIState) {
 		if l <= 1e-9 {
 			return -96.0
 		} // Lower noise floor
+
 		return 20 * math.Log10(l)
 	}
 

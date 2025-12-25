@@ -7,6 +7,8 @@ import (
 
 // TestNewSoftKneeCompressor verifies the compressor initializes with correct defaults.
 func TestNewSoftKneeCompressor(t *testing.T) {
+	t.Parallel()
+
 	sampleRate := 48000.0
 	channels := 2
 
@@ -48,6 +50,8 @@ func TestNewSoftKneeCompressor(t *testing.T) {
 
 // TestSetParameters verifies parameter setters update internal state correctly.
 func TestSetParameters(t *testing.T) {
+	t.Parallel()
+
 	comp := NewSoftKneeCompressor(48000.0, 2)
 
 	// Test threshold
@@ -120,6 +124,8 @@ func TestSetParameters(t *testing.T) {
 
 // TestThresholdConversion verifies dB to linear conversion.
 func TestThresholdConversion(t *testing.T) {
+	t.Parallel()
+
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetThreshold(-20.0)
 
@@ -131,6 +137,8 @@ func TestThresholdConversion(t *testing.T) {
 
 // TestAttackReleaseCoefficients verifies time constant calculations.
 func TestAttackReleaseCoefficients(t *testing.T) {
+	t.Parallel()
+
 	sampleRate := 48000.0
 	comp := NewSoftKneeCompressor(sampleRate, 2)
 
@@ -166,6 +174,8 @@ func TestAttackReleaseCoefficients(t *testing.T) {
 
 // TestKneeBoundaries verifies knee boundary calculations.
 func TestKneeBoundaries(t *testing.T) {
+	t.Parallel()
+
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetThreshold(-20.0)
 	comp.SetKnee(6.0)
@@ -190,6 +200,8 @@ func TestKneeBoundaries(t *testing.T) {
 
 // TestNoCompressionBelowKnee verifies no compression below the knee.
 func TestNoCompressionBelowKnee(t *testing.T) {
+	t.Parallel()
+
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetThreshold(-20.0)
 	comp.SetKnee(6.0)
@@ -205,6 +217,8 @@ func TestNoCompressionBelowKnee(t *testing.T) {
 
 // TestFullCompressionAboveKnee verifies full compression ratio above the knee.
 func TestFullCompressionAboveKnee(t *testing.T) {
+	t.Parallel()
+
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetThreshold(-20.0)
 	comp.SetRatio(4.0)
@@ -229,6 +243,8 @@ func TestFullCompressionAboveKnee(t *testing.T) {
 
 // TestSoftKneeTransition verifies smooth gain transition in knee region.
 func TestSoftKneeTransition(t *testing.T) {
+	t.Parallel()
+
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetThreshold(-20.0)
 	comp.SetRatio(4.0)
@@ -257,6 +273,8 @@ func TestSoftKneeTransition(t *testing.T) {
 
 // TestProcessSampleNoCompression verifies silent signal passes through.
 func TestProcessSampleNoCompression(t *testing.T) {
+	t.Parallel()
+
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetThreshold(-20.0)
 	comp.SetAutoMakeup(false)
@@ -274,6 +292,8 @@ func TestProcessSampleNoCompression(t *testing.T) {
 
 // TestProcessSampleCompression verifies loud signal is compressed.
 func TestProcessSampleCompression(t *testing.T) {
+	t.Parallel()
+
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetThreshold(-20.0)
 	comp.SetRatio(4.0)
@@ -299,6 +319,8 @@ func TestProcessSampleCompression(t *testing.T) {
 
 // TestPeakDetectorAttack verifies fast attack response.
 func TestPeakDetectorAttack(t *testing.T) {
+	t.Parallel()
+
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetAttack(1.0) // Very fast attack
 	comp.SetThreshold(-20.0)
@@ -321,6 +343,8 @@ func TestPeakDetectorAttack(t *testing.T) {
 
 // TestPeakDetectorRelease verifies release decay.
 func TestPeakDetectorRelease(t *testing.T) {
+	t.Parallel()
+
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetAttack(1.0)
 	comp.SetRelease(10.0) // Fast release for testing
@@ -349,6 +373,8 @@ func TestPeakDetectorRelease(t *testing.T) {
 
 // TestAutoMakeupGain verifies automatic makeup gain calculation.
 func TestAutoMakeupGain(t *testing.T) {
+	t.Parallel()
+
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetThreshold(-20.0)
 	comp.SetRatio(4.0)
@@ -373,6 +399,8 @@ func TestAutoMakeupGain(t *testing.T) {
 
 // TestReset verifies reset clears peak state.
 func TestReset(t *testing.T) {
+	t.Parallel()
+
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetThreshold(-20.0)
 
@@ -398,6 +426,8 @@ func TestReset(t *testing.T) {
 
 // TestChannelIndependence verifies each channel maintains independent state.
 func TestChannelIndependence(t *testing.T) {
+	t.Parallel()
+
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetAttack(1.0) // Fast attack for testing
 	comp.SetThreshold(-20.0)
@@ -420,6 +450,8 @@ func TestChannelIndependence(t *testing.T) {
 
 // TestInvalidChannel verifies out-of-bounds channel handling.
 func TestInvalidChannel(t *testing.T) {
+	t.Parallel()
+
 	comp := NewSoftKneeCompressor(48000.0, 2)
 
 	input := float32(0.5)

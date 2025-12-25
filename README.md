@@ -41,13 +41,6 @@ This project implements a PipeWire filter node that performs dynamic range compr
 - [x] Build system (justfile)
 - [x] Comprehensive test suite
 
-### TODO
-
-- [ ] Add visual feedback (level meters, gain reduction display)
-- [ ] Implement sidechain filtering
-- [ ] Add preset management
-- [ ] Test with various audio sources in production environments
-
 ## Compressor Parameters
 
 All parameters can be configured via command-line flags (see Usage section):
