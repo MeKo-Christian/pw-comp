@@ -159,31 +159,37 @@ The project includes a comprehensive test suite covering both unit tests and int
 ### Running Tests
 
 Run all tests (unit + integration):
+
 ```bash
 just test
 ```
 
 Run only unit tests:
+
 ```bash
 just test-unit
 ```
 
 Run only integration tests:
+
 ```bash
 just test-integration
 ```
 
 Run tests with coverage report:
+
 ```bash
 just test-coverage
 ```
 
 Run integration tests with coverage:
+
 ```bash
 just test-integration-coverage
 ```
 
 Run benchmarks:
+
 ```bash
 just bench
 ```
@@ -191,6 +197,7 @@ just bench
 ### CI/CD Compatibility
 
 The test suite is designed to run in any CI/CD environment:
+
 - ✅ No PipeWire daemon required for tests
 - ✅ No audio hardware needed
 - ✅ Fast execution (< 1 second total)
