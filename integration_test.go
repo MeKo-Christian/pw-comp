@@ -3,6 +3,8 @@ package main
 import (
 	"math"
 	"testing"
+
+	"pw-comp/dsp"
 )
 
 // Test configuration constants.
@@ -24,7 +26,7 @@ const (
 
 // setupTestCompressor creates a fresh compressor instance with standard test parameters.
 func setupTestCompressor() {
-	compressor = NewSoftKneeCompressor(testSampleRate, 2)
+	compressor = dsp.NewSoftKneeCompressor(testSampleRate, 2)
 	compressor.SetThreshold(defaultThreshold)
 	compressor.SetRatio(defaultRatio)
 	compressor.SetKnee(defaultKnee)

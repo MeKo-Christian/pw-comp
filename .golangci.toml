@@ -27,7 +27,7 @@ statements = 70
 min-complexity = 60
 
 [linters.settings.varnamelen]
-ignore-names = ['i', 'j', 'n', 'ok', 'db', 'id', 'in', 'ev', 's']
+ignore-names = ['i', 'j', 'n', 'ok', 'db', 'id', 'in', 'ev', 's', 'x']
 
 [linters.settings.wsl_v5]
 allow-first-in-block = true
@@ -52,6 +52,11 @@ text = '(channels|sampleRate|compressor) is a global variable'
 linters = ['gochecknoglobals']
 path = 'tui\.go'
 text = 'paramNames is a global variable'
+
+[[linters.exclusions.rules]]
+linters = ['testpackage']
+path = 'dsp/compressor_test\.go'
+text = 'package should be `dsp_test`'
 
 [severity]
 default = 'warn'

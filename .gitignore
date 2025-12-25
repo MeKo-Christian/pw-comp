@@ -43,3 +43,6 @@ pw-comp.log
 # Integration coverage
 integration_coverage.out
 integration_coverage.html
+
+# Trunk
+.trunk/

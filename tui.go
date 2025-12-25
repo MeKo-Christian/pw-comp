@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/nsf/termbox-go"
+	"pw-comp/dsp"
 )
 
 const (
@@ -21,7 +22,7 @@ const (
 
 type TUIState struct {
 	selectedParam int
-	comp          *SoftKneeCompressor
+	comp          *dsp.SoftKneeCompressor
 	exit          bool
 }
 
@@ -36,7 +37,7 @@ var paramNames = []string{
 	"Bypass",
 }
 
-func runTUI(comp *SoftKneeCompressor) {
+func runTUI(comp *dsp.SoftKneeCompressor) {
 	err := termbox.Init()
 	if err != nil {
 		//nolint:forbidigo // TUI initialization error requires direct output
@@ -113,7 +114,7 @@ func handleKey(ev termbox.Event, s *TUIState) {
 		}
 
 		if change != 0 {
-			s.comp.SetThreshold(s.comp.thresholdDB + change)
+			s.comp.SetThreshold(s.comp.GetThreshold() + change)
 		}
 	case 1: // Ratio
 		change := 0.0
@@ -126,7 +127,7 @@ func handleKey(ev termbox.Event, s *TUIState) {
 		}
 
 		if change != 0 {
-			s.comp.SetRatio(s.comp.ratio + change)
+			s.comp.SetRatio(s.comp.GetRatio() + change)
 		}
 	case 2: // Knee
 		change := 0.0
@@ -139,7 +140,7 @@ func handleKey(ev termbox.Event, s *TUIState) {
 		}
 
 		if change != 0 {
-			s.comp.SetKnee(s.comp.kneeDB + change)
+			s.comp.SetKnee(s.comp.GetKnee() + change)
 		}
 	case 3: // Attack
 		change := 0.0
@@ -152,7 +153,7 @@ func handleKey(ev termbox.Event, s *TUIState) {
 		}
 
 		if change != 0 {
-			s.comp.SetAttack(s.comp.attackMs + change)
+			s.comp.SetAttack(s.comp.GetAttack() + change)
 		}
 	case 4: // Release
 		change := 0.0
@@ -165,7 +166,7 @@ func handleKey(ev termbox.Event, s *TUIState) {
 		}
 
 		if change != 0 {
-			s.comp.SetRelease(s.comp.releaseMs + change)
+			s.comp.SetRelease(s.comp.GetRelease() + change)
 		}
 	case 5: // Makeup
 		change := 0.0
@@ -178,15 +179,15 @@ func handleKey(ev termbox.Event, s *TUIState) {
 		}
 
 		if change != 0 {
-			s.comp.SetMakeupGain(s.comp.makeupGainDB + change)
+			s.comp.SetMakeupGain(s.comp.GetMakeupGain() + change)
 		}
 	case 6: // Auto Makeup
 		if ev.Key == termbox.KeyArrowRight || ev.Key == termbox.KeyArrowLeft || ev.Key == termbox.KeyEnter {
-			s.comp.SetAutoMakeup(!s.comp.autoMakeup)
+			s.comp.SetAutoMakeup(!s.comp.GetAutoMakeup())
 		}
 	case 7: // Bypass
 		if ev.Key == termbox.KeyArrowRight || ev.Key == termbox.KeyArrowLeft || ev.Key == termbox.KeyEnter {
-			s.comp.SetBypass(!s.comp.bypass)
+			s.comp.SetBypass(!s.comp.GetBypass())
 		}
 	}
 }
@@ -204,18 +205,16 @@ func draw(state *TUIState) {
 	printTB(0, 3, colDef, colDef, "----------------------------------------------------")
 
 	// Parameters
-	state.comp.mu.Lock()
 	vals := []string{
-		fmt.Sprintf("%.1f", state.comp.thresholdDB),
-		fmt.Sprintf("%.1f", state.comp.ratio),
-		fmt.Sprintf("%.1f", state.comp.kneeDB),
-		fmt.Sprintf("%.1f", state.comp.attackMs),
-		fmt.Sprintf("%.1f", state.comp.releaseMs),
-		fmt.Sprintf("%.1f", state.comp.makeupGainDB),
-		strconv.FormatBool(state.comp.autoMakeup),
-		strconv.FormatBool(state.comp.bypass),
+		fmt.Sprintf("%.1f", state.comp.GetThreshold()),
+		fmt.Sprintf("%.1f", state.comp.GetRatio()),
+		fmt.Sprintf("%.1f", state.comp.GetKnee()),
+		fmt.Sprintf("%.1f", state.comp.GetAttack()),
+		fmt.Sprintf("%.1f", state.comp.GetRelease()),
+		fmt.Sprintf("%.1f", state.comp.GetMakeupGain()),
+		strconv.FormatBool(state.comp.GetAutoMakeup()),
+		strconv.FormatBool(state.comp.GetBypass()),
 	}
-	state.comp.mu.Unlock()
 
 	for i, name := range paramNames {
 		col := colWhite

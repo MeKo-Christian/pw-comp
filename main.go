@@ -27,6 +27,8 @@ import (
 	"sync"
 	"time"
 	"unsafe"
+
+	"pw-comp/dsp"
 )
 
 // Audio configuration.
@@ -36,7 +38,7 @@ var (
 )
 
 // Compressor instance.
-var compressor *SoftKneeCompressor
+var compressor *dsp.SoftKneeCompressor
 
 // export log_from_c
 //
@@ -133,7 +135,7 @@ func main() {
 	}
 
 	// Initialize compressor with default settings
-	compressor = NewSoftKneeCompressor(float64(sampleRate), channels)
+	compressor = dsp.NewSoftKneeCompressor(float64(sampleRate), channels)
 	slog.Info("Compressor initialized", "defaultSampleRate", sampleRate, "channels", channels)
 
 	// Configure compressor parameters from command-line flags

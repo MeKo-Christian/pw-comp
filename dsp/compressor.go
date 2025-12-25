@@ -1,4 +1,4 @@
-package main
+package dsp
 
 import (
 	"math"
@@ -281,6 +281,70 @@ func (c *SoftKneeCompressor) GetMeters() MeterStats {
 	}
 }
 
+// GetThreshold returns the current threshold in dB.
+func (c *SoftKneeCompressor) GetThreshold() float64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.thresholdDB
+}
+
+// GetRatio returns the current compression ratio.
+func (c *SoftKneeCompressor) GetRatio() float64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.ratio
+}
+
+// GetKnee returns the current knee width in dB.
+func (c *SoftKneeCompressor) GetKnee() float64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.kneeDB
+}
+
+// GetAttack returns the current attack time in milliseconds.
+func (c *SoftKneeCompressor) GetAttack() float64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.attackMs
+}
+
+// GetRelease returns the current release time in milliseconds.
+func (c *SoftKneeCompressor) GetRelease() float64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.releaseMs
+}
+
+// GetMakeupGain returns the current makeup gain in dB.
+func (c *SoftKneeCompressor) GetMakeupGain() float64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.makeupGainDB
+}
+
+// GetAutoMakeup returns whether automatic makeup gain is enabled.
+func (c *SoftKneeCompressor) GetAutoMakeup() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.autoMakeup
+}
+
+// GetBypass returns whether bypass is enabled.
+func (c *SoftKneeCompressor) GetBypass() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.bypass
+}
+
 // updateTimeConstants recalculates attack and release coefficients (internal, assumes lock held).
 func (c *SoftKneeCompressor) updateTimeConstants() {
 	c.attackFactor = 1.0 - math.Exp(-math.Ln2/(c.attackMs*0.001*c.sampleRate))
@@ -289,12 +353,12 @@ func (c *SoftKneeCompressor) updateTimeConstants() {
 
 // updateParameters recalculates all internal cached values (internal, assumes lock held).
 func (c *SoftKneeCompressor) updateParameters() {
-	c.threshold = math.Pow(10.0, c.thresholdDB/20.0)
+	c.threshold = DBToLinear(c.thresholdDB)
 	c.thresholdRecip = 1.0 / c.threshold
 
 	kneeHalfDB := c.kneeDB / 2.0
-	c.kneeLower = math.Pow(10.0, (c.thresholdDB-kneeHalfDB)/20.0)
-	c.kneeUpper = math.Pow(10.0, (c.thresholdDB+kneeHalfDB)/20.0)
+	c.kneeLower = DBToLinear(c.thresholdDB - kneeHalfDB)
+	c.kneeUpper = DBToLinear(c.thresholdDB + kneeHalfDB)
 	c.kneeWidth = c.kneeUpper - c.kneeLower
 
 	c.slopeRecip = 1.0/c.ratio - 1.0
@@ -304,7 +368,7 @@ func (c *SoftKneeCompressor) updateParameters() {
 		c.makeupGainDB = -gainReductionDB
 	}
 
-	c.makeupGainLin = math.Pow(10.0, c.makeupGainDB/20.0)
+	c.makeupGainLin = DBToLinear(c.makeupGainDB)
 	c.updateTimeConstants()
 }
 
@@ -351,12 +415,12 @@ func (c *SoftKneeCompressor) calculateGain(peakLevel float64) float64 {
 	}
 
 	if peakLevel >= c.kneeUpper {
-		return math.Pow(c.threshold/peakLevel, 1.0-1.0/c.ratio)
+		return FastPow(c.threshold/peakLevel, 1.0-1.0/c.ratio)
 	}
 
 	kneePos := (peakLevel - c.kneeLower) / c.kneeWidth
 	smoothFactor := kneePos * kneePos * (3.0 - 2.0*kneePos)
-	compressedGain := math.Pow(c.threshold/c.kneeUpper, 1.0-1.0/c.ratio)
+	compressedGain := FastPow(c.threshold/c.kneeUpper, 1.0-1.0/c.ratio)
 
 	return 1.0 + (compressedGain-1.0)*smoothFactor
 }
