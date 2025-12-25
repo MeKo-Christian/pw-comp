@@ -15,11 +15,6 @@ const (
 	testFreq440Hz = 440.0
 	testFreq1kHz  = 1000.0
 
-	toleranceDBSmall  = 0.1 // dB
-	toleranceDBMedium = 0.5 // dB
-	toleranceDBLarge  = 1.0 // dB
-	tolerancePercent  = 5.0 // percent
-
 	defaultThreshold = -20.0
 	defaultRatio     = 4.0
 	defaultKnee      = 6.0

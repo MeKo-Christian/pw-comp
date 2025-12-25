@@ -103,15 +103,15 @@ func (c *SoftKneeCompressor) SetRatio(ratio float64) {
 }
 
 // SetKnee sets the soft knee width in dB.
-func (c *SoftKneeCompressor) SetKnee(dB float64) {
+func (c *SoftKneeCompressor) SetKnee(kneeDB float64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if dB < 0.0 {
-		dB = 0.0
+	if kneeDB < 0.0 {
+		kneeDB = 0.0
 	}
 
-	c.kneeDB = dB
+	c.kneeDB = kneeDB
 	c.updateParameters()
 }
 
@@ -320,9 +320,11 @@ func (c *SoftKneeCompressor) calculateGain(peakLevel float64) float64 {
 	if peakLevel <= c.kneeLower {
 		return 1.0
 	}
+
 	if peakLevel >= c.kneeUpper {
 		return math.Pow(c.threshold/peakLevel, 1.0-1.0/c.ratio)
 	}
+
 	kneePos := (peakLevel - c.kneeLower) / c.kneeWidth
 	smoothFactor := kneePos * kneePos * (3.0 - 2.0*kneePos)
 	compressedGain := math.Pow(c.threshold/c.kneeUpper, 1.0-1.0/c.ratio)

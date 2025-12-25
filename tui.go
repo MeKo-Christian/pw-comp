@@ -252,19 +252,19 @@ func draw(s *TUIState) {
 	drawMeter(2, y+2, "In L ", inL, colGreen)
 	drawMeter(2, y+3, "In R ", inR, colGreen)
 
-	grL_disp := -grL
-	grR_disp := -grR
+	grLeftDisp := -grL
+	grRightDisp := -grR
 
-	if grL_disp < 0 {
-		grL_disp = 0
+	if grLeftDisp < 0 {
+		grLeftDisp = 0
 	}
 
-	if grR_disp < 0 {
-		grR_disp = 0
+	if grRightDisp < 0 {
+		grRightDisp = 0
 	}
 
-	drawMeter(2, y+5, "GR L ", grL_disp, colRed)
-	drawMeter(2, y+6, "GR R ", grR_disp, colRed)
+	drawMeter(2, y+5, "GR L ", grLeftDisp, colRed)
+	drawMeter(2, y+6, "GR R ", grRightDisp, colRed)
 
 	drawMeter(2, y+8, "Out L", outL, colBlue)
 	drawMeter(2, y+9, "Out R", outR, colBlue)
@@ -310,16 +310,16 @@ func drawMeter(x, y int, label string, db float64, color termbox.Attribute) {
 	startX := x + 15
 
 	for i := range barWidth {
-		var ch rune
-		bg := colDef
+		var barChar rune
+		bgCol := colDef
 
 		if i < filled {
-			ch = '█'
+			barChar = '█'
 		} else {
-			ch = '░'
+			barChar = '░'
 		}
 
-		termbox.SetCell(startX+i, y, ch, color, bg)
+		termbox.SetCell(startX+i, y, barChar, color, bgCol)
 	}
 }
 
