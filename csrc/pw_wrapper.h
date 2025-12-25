@@ -11,7 +11,7 @@
 #include <spa/pod/builder.h>
 #include <spa/pod/parser.h>
 
-extern void process_audio_go(float *in, float *out, int samples); // Go DSP function
+extern void process_channel_go(float *in, float *out, int samples, int sample_rate, int channel_index);
 
 // Structure to hold port-specific data
 struct port_data {
@@ -25,12 +25,12 @@ struct pw_filter_data {
     struct pw_core *core;
     struct pw_filter *filter;
     struct spa_hook filter_listener;
-    struct port_data *in_port;
-    struct port_data *out_port;
+    struct port_data **in_ports;  // Array of pointers to port_data
+    struct port_data **out_ports; // Array of pointers to port_data
     int channels;
 };
 
-struct pw_filter_data* create_pipewire_filter(struct pw_main_loop *loop, int channels, int sample_rate);
+struct pw_filter_data* create_pipewire_filter(struct pw_main_loop *loop, int channels);
 
 void destroy_pipewire_filter(struct pw_filter_data* data);
 

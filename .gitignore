@@ -32,3 +32,6 @@ Thumbs.db
 # Build artifacts
 csrc/*.so
 csrc/*.o
+
+# Agents
+.claude/

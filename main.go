@@ -29,27 +29,25 @@ import (
 // Audio configuration
 var (
 	channels   = 2     // Stereo (modify for 5.1, etc.)
-	sampleRate = 48000 // Standard sample rate
+	sampleRate = 48000 // Default sample rate, will be updated by PipeWire
 )
 
 // Compressor instance
 var compressor *SoftKneeCompressor
 
-// processAudioBuffer processes an audio buffer through the compressor (Go wrapper for tests)
+// processAudioBuffer processes an INTERLEAVED audio buffer through the compressor (Go wrapper for tests)
+// This simulates the behavior of the old single-port implementation for testing purposes.
 func processAudioBuffer(audio []float32) {
 	if compressor == nil {
 		return
 	}
 
-	// Ensure we have enough data to process multichannel audio
 	if len(audio)%channels != 0 {
-		fmt.Println("Warning: Buffer size is not a multiple of channels")
 		return
 	}
 
 	samplesPerChannel := len(audio) / channels
 
-	// Process each sample through the compressor
 	for i := 0; i < samplesPerChannel; i++ {
 		for ch := 0; ch < channels; ch++ {
 			index := i*channels + ch
@@ -58,21 +56,23 @@ func processAudioBuffer(audio []float32) {
 	}
 }
 
-//export process_audio_go
-func process_audio_go(in *C.float, out *C.float, samples C.int) {
+//export process_channel_go
+func process_channel_go(in *C.float, out *C.float, samples C.int, rate C.int, channelIndex C.int) {
 	if compressor == nil {
 		return
+	}
+
+	// Update sample rate if changed
+	if rate > 0 {
+		compressor.SetSampleRate(float64(rate))
 	}
 
 	// Convert C arrays to Go slices
 	inBuf := unsafe.Slice((*float32)(unsafe.Pointer(in)), int(samples))
 	outBuf := unsafe.Slice((*float32)(unsafe.Pointer(out)), int(samples))
 
-	// Copy input to output first
-	copy(outBuf, inBuf)
-
-	// Process the output buffer through the compressor
-	processAudioBuffer(outBuf)
+	// Process the block for this specific channel
+	compressor.ProcessBlock(inBuf, outBuf, int(channelIndex))
 }
 
 func main() {
@@ -129,7 +129,7 @@ func main() {
 		fmt.Printf("  Makeup Gain: Auto\n")
 	}
 	fmt.Printf("  Channels: %d\n", channels)
-	fmt.Printf("  Sample Rate: %d Hz\n", sampleRate)
+	fmt.Printf("  Sample Rate: Auto (Initial: %d Hz)\n", sampleRate)
 	fmt.Println("==============================================")
 
 	// Initialize PipeWire
@@ -142,8 +142,8 @@ func main() {
 		return
 	}
 
-	// Create a new PipeWire filter with both input and output ports
-	filterData := C.create_pipewire_filter(loop, C.int(channels), C.int(sampleRate))
+	// Create a new PipeWire filter with separate ports for each channel
+	filterData := C.create_pipewire_filter(loop, C.int(channels))
 	if filterData == nil {
 		fmt.Println("ERROR: Failed to create PipeWire filter")
 		C.pw_main_loop_destroy(loop)
@@ -151,6 +151,7 @@ func main() {
 	}
 
 	fmt.Println("\nINFO: Filter is active and ready for audio routing.")
+	fmt.Println("      Separate ports (FL, FR) should appear as standard Audio (Green) in graph tools.")
 
 	// Run the main loop
 	C.pw_main_loop_run(loop)

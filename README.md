@@ -17,10 +17,11 @@ This project implements a PipeWire filter node that performs dynamic range compr
 
 ### How It Works
 
-1. PipeWire creates an audio stream configured as a filter node
-2. Audio buffers arrive via the `on_process` callback in C ([csrc/pw_wrapper.c:10-41](csrc/pw_wrapper.c#L10-L41))
-3. The callback invokes `process_audio_go` which processes samples through the compressor
-4. Compressed audio is queued back to PipeWire's output
+1. PipeWire creates an audio stream configured as a filter node with separate ports for each channel (e.g., FL, FR).
+2. Audio buffers arrive via the `on_process` callback in C, which processes each channel individually.
+3. The callback invokes `process_channel_go` which processes samples through the compressor DSP.
+4. The compressor dynamically adapts its internal time constants to the sample rate negotiated by PipeWire.
+5. Compressed audio is queued back to PipeWire's output.
 
 ## Current Status
 
@@ -33,7 +34,8 @@ This project implements a PipeWire filter node that performs dynamic range compr
   - [x] Soft-knee compression curve
   - [x] Automatic makeup gain calculation
   - [x] Threshold, ratio, knee, attack, release controls
-- [x] Stereo audio support (configurable channels)
+- [x] Stereo audio support via separate planar ports (FL, FR)
+- [x] Adaptable sample rate support (automatically negotiated)
 - [x] Bidirectional I/O (filter node)
 - [x] Command-line parameter configuration
 - [x] Build system (justfile)
@@ -56,8 +58,8 @@ All parameters can be configured via command-line flags (see Usage section):
 - **Attack**: Attack time in milliseconds (default: 10 ms)
 - **Release**: Release time in milliseconds (default: 100 ms)
 - **Makeup Gain**: Manual makeup gain in dB, or auto (default: auto)
-- **Channels**: 2 (stereo) - hardcoded in [main.go:29](main.go#L29)
-- **Sample Rate**: 48 kHz - hardcoded in [main.go:30](main.go#L30)
+- **Channels**: 2 (Exposed as separate `FL` and `FR` green ports)
+- **Sample Rate**: Adaptable (Negotiated by PipeWire, compressor updates automatically)
 
 ## Building
 

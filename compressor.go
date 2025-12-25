@@ -107,6 +107,18 @@ func (c *SoftKneeCompressor) SetAutoMakeup(enable bool) {
 	c.updateParameters()
 }
 
+// SetSampleRate updates the sample rate and recalculates time constants
+func (c *SoftKneeCompressor) SetSampleRate(rate float64) {
+	if rate <= 0.0 {
+		return
+	}
+	// Only update if changed to avoid unnecessary recalculation
+	if c.sampleRate != rate {
+		c.sampleRate = rate
+		c.updateTimeConstants()
+	}
+}
+
 // updateTimeConstants recalculates attack and release coefficients
 func (c *SoftKneeCompressor) updateTimeConstants() {
 	// Convert time constants to exponential coefficients
@@ -168,6 +180,17 @@ func (c *SoftKneeCompressor) ProcessSample(sample float32, channel int) float32 
 
 	// Apply gain and makeup gain
 	return float32(float64(sample) * gain * c.makeupGainLin)
+}
+
+// ProcessBlock processes a slice of samples for a specific channel
+func (c *SoftKneeCompressor) ProcessBlock(in []float32, out []float32, channel int) {
+	if channel < 0 || channel >= c.channels || len(in) != len(out) {
+		return
+	}
+
+	for i := 0; i < len(in); i++ {
+		out[i] = c.ProcessSample(in[i], channel)
+	}
 }
 
 // calculateGain computes the gain multiplier for a given peak level
