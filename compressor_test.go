@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// TestNewSoftKneeCompressor verifies the compressor initializes with correct defaults
+// TestNewSoftKneeCompressor verifies the compressor initializes with correct defaults.
 func TestNewSoftKneeCompressor(t *testing.T) {
 	sampleRate := 48000.0
 	channels := 2
@@ -46,69 +46,79 @@ func TestNewSoftKneeCompressor(t *testing.T) {
 	}
 }
 
-// TestSetParameters verifies parameter setters update internal state correctly
+// TestSetParameters verifies parameter setters update internal state correctly.
 func TestSetParameters(t *testing.T) {
 	comp := NewSoftKneeCompressor(48000.0, 2)
 
 	// Test threshold
 	comp.SetThreshold(-10.0)
+
 	if comp.thresholdDB != -10.0 {
 		t.Errorf("SetThreshold failed: expected -10.0, got %f", comp.thresholdDB)
 	}
 
 	// Test ratio
 	comp.SetRatio(8.0)
+
 	if comp.ratio != 8.0 {
 		t.Errorf("SetRatio failed: expected 8.0, got %f", comp.ratio)
 	}
 
 	// Test ratio minimum clamping
 	comp.SetRatio(0.5)
+
 	if comp.ratio < 1.0 {
 		t.Errorf("SetRatio should clamp to minimum 1.0, got %f", comp.ratio)
 	}
 
 	// Test knee
 	comp.SetKnee(3.0)
+
 	if comp.kneeDB != 3.0 {
 		t.Errorf("SetKnee failed: expected 3.0, got %f", comp.kneeDB)
 	}
 
 	// Test knee minimum clamping
 	comp.SetKnee(-5.0)
+
 	if comp.kneeDB < 0.0 {
 		t.Errorf("SetKnee should clamp to minimum 0.0, got %f", comp.kneeDB)
 	}
 
 	// Test attack time
 	comp.SetAttack(5.0)
+
 	if comp.attackMs != 5.0 {
 		t.Errorf("SetAttack failed: expected 5.0, got %f", comp.attackMs)
 	}
 
 	// Test release time
 	comp.SetRelease(200.0)
+
 	if comp.releaseMs != 200.0 {
 		t.Errorf("SetRelease failed: expected 200.0, got %f", comp.releaseMs)
 	}
 
 	// Test manual makeup gain
 	comp.SetMakeupGain(3.0)
+
 	if comp.makeupGainDB != 3.0 {
 		t.Errorf("SetMakeupGain failed: expected 3.0, got %f", comp.makeupGainDB)
 	}
+
 	if comp.autoMakeup {
 		t.Error("SetMakeupGain should disable auto makeup")
 	}
 
 	// Test auto makeup
 	comp.SetAutoMakeup(true)
+
 	if !comp.autoMakeup {
 		t.Error("SetAutoMakeup failed to enable auto makeup")
 	}
 }
 
-// TestThresholdConversion verifies dB to linear conversion
+// TestThresholdConversion verifies dB to linear conversion.
 func TestThresholdConversion(t *testing.T) {
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetThreshold(-20.0)
@@ -119,7 +129,7 @@ func TestThresholdConversion(t *testing.T) {
 	}
 }
 
-// TestAttackReleaseCoefficients verifies time constant calculations
+// TestAttackReleaseCoefficients verifies time constant calculations.
 func TestAttackReleaseCoefficients(t *testing.T) {
 	sampleRate := 48000.0
 	comp := NewSoftKneeCompressor(sampleRate, 2)
@@ -154,7 +164,7 @@ func TestAttackReleaseCoefficients(t *testing.T) {
 	}
 }
 
-// TestKneeBoundaries verifies knee boundary calculations
+// TestKneeBoundaries verifies knee boundary calculations.
 func TestKneeBoundaries(t *testing.T) {
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetThreshold(-20.0)
@@ -178,7 +188,7 @@ func TestKneeBoundaries(t *testing.T) {
 	}
 }
 
-// TestNoCompressionBelowKnee verifies no compression below the knee
+// TestNoCompressionBelowKnee verifies no compression below the knee.
 func TestNoCompressionBelowKnee(t *testing.T) {
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetThreshold(-20.0)
@@ -193,7 +203,7 @@ func TestNoCompressionBelowKnee(t *testing.T) {
 	}
 }
 
-// TestFullCompressionAboveKnee verifies full compression ratio above the knee
+// TestFullCompressionAboveKnee verifies full compression ratio above the knee.
 func TestFullCompressionAboveKnee(t *testing.T) {
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetThreshold(-20.0)
@@ -217,7 +227,7 @@ func TestFullCompressionAboveKnee(t *testing.T) {
 	}
 }
 
-// TestSoftKneeTransition verifies smooth gain transition in knee region
+// TestSoftKneeTransition verifies smooth gain transition in knee region.
 func TestSoftKneeTransition(t *testing.T) {
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetThreshold(-20.0)
@@ -245,7 +255,7 @@ func TestSoftKneeTransition(t *testing.T) {
 	}
 }
 
-// TestProcessSampleNoCompression verifies silent signal passes through
+// TestProcessSampleNoCompression verifies silent signal passes through.
 func TestProcessSampleNoCompression(t *testing.T) {
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetThreshold(-20.0)
@@ -262,12 +272,12 @@ func TestProcessSampleNoCompression(t *testing.T) {
 	}
 }
 
-// TestProcessSampleCompression verifies loud signal is compressed
+// TestProcessSampleCompression verifies loud signal is compressed.
 func TestProcessSampleCompression(t *testing.T) {
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetThreshold(-20.0)
 	comp.SetRatio(4.0)
-	comp.SetAttack(1.0) // Fast attack
+	comp.SetAttack(1.0)     // Fast attack
 	comp.SetMakeupGain(0.0) // Disable makeup gain
 	comp.Reset()
 
@@ -276,7 +286,7 @@ func TestProcessSampleCompression(t *testing.T) {
 
 	// Process multiple samples to allow peak detector to respond
 	var output float32
-	for i := 0; i < 200; i++ {
+	for range 200 {
 		output = comp.ProcessSample(input, 0)
 	}
 
@@ -287,7 +297,7 @@ func TestProcessSampleCompression(t *testing.T) {
 	}
 }
 
-// TestPeakDetectorAttack verifies fast attack response
+// TestPeakDetectorAttack verifies fast attack response.
 func TestPeakDetectorAttack(t *testing.T) {
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetAttack(1.0) // Very fast attack
@@ -298,7 +308,7 @@ func TestPeakDetectorAttack(t *testing.T) {
 	loudSample := float32(0.5)
 
 	// Process multiple samples to allow peak detector to respond
-	for i := 0; i < 500; i++ {
+	for range 500 {
 		comp.ProcessSample(loudSample, 0)
 	}
 
@@ -309,7 +319,7 @@ func TestPeakDetectorAttack(t *testing.T) {
 	}
 }
 
-// TestPeakDetectorRelease verifies release decay
+// TestPeakDetectorRelease verifies release decay.
 func TestPeakDetectorRelease(t *testing.T) {
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetAttack(1.0)
@@ -319,14 +329,14 @@ func TestPeakDetectorRelease(t *testing.T) {
 
 	// Build up peak
 	loudSample := float32(0.5)
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		comp.ProcessSample(loudSample, 0)
 	}
 
 	peakAfterAttack := comp.peak[0]
 
 	// Process silence to trigger release
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		comp.ProcessSample(0.0, 0)
 	}
 
@@ -337,7 +347,7 @@ func TestPeakDetectorRelease(t *testing.T) {
 	}
 }
 
-// TestAutoMakeupGain verifies automatic makeup gain calculation
+// TestAutoMakeupGain verifies automatic makeup gain calculation.
 func TestAutoMakeupGain(t *testing.T) {
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetThreshold(-20.0)
@@ -361,13 +371,13 @@ func TestAutoMakeupGain(t *testing.T) {
 	}
 }
 
-// TestReset verifies reset clears peak state
+// TestReset verifies reset clears peak state.
 func TestReset(t *testing.T) {
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetThreshold(-20.0)
 
 	// Build up peak
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		comp.ProcessSample(0.5, 0)
 		comp.ProcessSample(0.5, 1)
 	}
@@ -386,7 +396,7 @@ func TestReset(t *testing.T) {
 	}
 }
 
-// TestChannelIndependence verifies each channel maintains independent state
+// TestChannelIndependence verifies each channel maintains independent state.
 func TestChannelIndependence(t *testing.T) {
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetAttack(1.0) // Fast attack for testing
@@ -394,7 +404,7 @@ func TestChannelIndependence(t *testing.T) {
 	comp.Reset()
 
 	// Process only channel 0
-	for i := 0; i < 500; i++ {
+	for range 500 {
 		comp.ProcessSample(0.5, 0)
 	}
 
@@ -408,7 +418,7 @@ func TestChannelIndependence(t *testing.T) {
 	}
 }
 
-// TestInvalidChannel verifies out-of-bounds channel handling
+// TestInvalidChannel verifies out-of-bounds channel handling.
 func TestInvalidChannel(t *testing.T) {
 	comp := NewSoftKneeCompressor(48000.0, 2)
 
@@ -427,7 +437,7 @@ func TestInvalidChannel(t *testing.T) {
 	}
 }
 
-// BenchmarkProcessSample benchmarks single sample processing
+// BenchmarkProcessSample benchmarks single sample processing.
 func BenchmarkProcessSample(b *testing.B) {
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetThreshold(-20.0)
@@ -436,12 +446,13 @@ func BenchmarkProcessSample(b *testing.B) {
 	sample := float32(0.5)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for range b.N {
 		comp.ProcessSample(sample, 0)
 	}
 }
 
-// BenchmarkProcessStereo benchmarks stereo processing
+// BenchmarkProcessStereo benchmarks stereo processing.
 func BenchmarkProcessStereo(b *testing.B) {
 	comp := NewSoftKneeCompressor(48000.0, 2)
 	comp.SetThreshold(-20.0)
@@ -451,7 +462,8 @@ func BenchmarkProcessStereo(b *testing.B) {
 	sampleR := float32(0.6)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for range b.N {
 		comp.ProcessSample(sampleL, 0)
 		comp.ProcessSample(sampleR, 1)
 	}

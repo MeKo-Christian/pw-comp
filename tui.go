@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"time"
 
 	"github.com/nsf/termbox-go"
@@ -50,6 +51,7 @@ func runTUI(comp *SoftKneeCompressor) {
 	}
 
 	eventQueue := make(chan termbox.Event)
+
 	go func() {
 		for {
 			eventQueue <- termbox.PollEvent()
@@ -64,9 +66,10 @@ func runTUI(comp *SoftKneeCompressor) {
 	for !state.exit {
 		select {
 		case ev := <-eventQueue:
-			if ev.Type == termbox.EventKey {
+			switch ev.Type {
+			case termbox.EventKey:
 				handleKey(ev, state)
-			} else if ev.Type == termbox.EventResize {
+			case termbox.EventResize:
 				draw(state)
 			}
 		case <-ticker.C:
@@ -82,12 +85,13 @@ func handleKey(ev termbox.Event, s *TUIState) {
 	}
 
 	// Navigation
-	if ev.Key == termbox.KeyArrowUp {
+	switch ev.Key {
+	case termbox.KeyArrowUp:
 		s.selectedParam--
 		if s.selectedParam < 0 {
 			s.selectedParam = len(paramNames) - 1
 		}
-	} else if ev.Key == termbox.KeyArrowDown {
+	case termbox.KeyArrowDown:
 		s.selectedParam++
 		if s.selectedParam >= len(paramNames) {
 			s.selectedParam = 0
@@ -98,43 +102,79 @@ func handleKey(ev termbox.Event, s *TUIState) {
 	switch s.selectedParam {
 	case 0: // Threshold
 		change := 0.0
-		if ev.Key == termbox.KeyArrowRight { change = 0.5 }
-		if ev.Key == termbox.KeyArrowLeft { change = -0.5 }
+		if ev.Key == termbox.KeyArrowRight {
+			change = 0.5
+		}
+
+		if ev.Key == termbox.KeyArrowLeft {
+			change = -0.5
+		}
+
 		if change != 0 {
 			s.comp.SetThreshold(s.comp.thresholdDB + change)
 		}
 	case 1: // Ratio
 		change := 0.0
-		if ev.Key == termbox.KeyArrowRight { change = 0.5 }
-		if ev.Key == termbox.KeyArrowLeft { change = -0.5 }
+		if ev.Key == termbox.KeyArrowRight {
+			change = 0.5
+		}
+
+		if ev.Key == termbox.KeyArrowLeft {
+			change = -0.5
+		}
+
 		if change != 0 {
 			s.comp.SetRatio(s.comp.ratio + change)
 		}
 	case 2: // Knee
 		change := 0.0
-		if ev.Key == termbox.KeyArrowRight { change = 1.0 }
-		if ev.Key == termbox.KeyArrowLeft { change = -1.0 }
+		if ev.Key == termbox.KeyArrowRight {
+			change = 1.0
+		}
+
+		if ev.Key == termbox.KeyArrowLeft {
+			change = -1.0
+		}
+
 		if change != 0 {
 			s.comp.SetKnee(s.comp.kneeDB + change)
 		}
 	case 3: // Attack
 		change := 0.0
-		if ev.Key == termbox.KeyArrowRight { change = 1.0 }
-		if ev.Key == termbox.KeyArrowLeft { change = -1.0 }
+		if ev.Key == termbox.KeyArrowRight {
+			change = 1.0
+		}
+
+		if ev.Key == termbox.KeyArrowLeft {
+			change = -1.0
+		}
+
 		if change != 0 {
 			s.comp.SetAttack(s.comp.attackMs + change)
 		}
 	case 4: // Release
 		change := 0.0
-		if ev.Key == termbox.KeyArrowRight { change = 10.0 }
-		if ev.Key == termbox.KeyArrowLeft { change = -10.0 }
+		if ev.Key == termbox.KeyArrowRight {
+			change = 10.0
+		}
+
+		if ev.Key == termbox.KeyArrowLeft {
+			change = -10.0
+		}
+
 		if change != 0 {
 			s.comp.SetRelease(s.comp.releaseMs + change)
 		}
 	case 5: // Makeup
 		change := 0.0
-		if ev.Key == termbox.KeyArrowRight { change = 0.5 }
-		if ev.Key == termbox.KeyArrowLeft { change = -0.5 }
+		if ev.Key == termbox.KeyArrowRight {
+			change = 0.5
+		}
+
+		if ev.Key == termbox.KeyArrowLeft {
+			change = -0.5
+		}
+
 		if change != 0 {
 			s.comp.SetMakeupGain(s.comp.makeupGainDB + change)
 		}
@@ -169,8 +209,8 @@ func draw(s *TUIState) {
 		fmt.Sprintf("%.1f", s.comp.attackMs),
 		fmt.Sprintf("%.1f", s.comp.releaseMs),
 		fmt.Sprintf("%.1f", s.comp.makeupGainDB),
-		fmt.Sprintf("%v", s.comp.autoMakeup),
-		fmt.Sprintf("%v", s.comp.bypass),
+		strconv.FormatBool(s.comp.autoMakeup),
+		strconv.FormatBool(s.comp.bypass),
 	}
 	s.comp.mu.Unlock()
 
@@ -178,38 +218,48 @@ func draw(s *TUIState) {
 		col := colWhite
 		bg := colDef
 		prefix := "  "
+
 		if i == s.selectedParam {
-			col = colDef // Black usually if bg is white
+			col = colDef  // Black usually if bg is white
 			bg = colWhite // Highlight
 			prefix = "> "
 		}
+
 		printTB(0, 5+i, col, bg, fmt.Sprintf("% -20s %s", prefix+name, vals[i]))
 	}
 
 	// Metering
 	y := 15
 	printTB(0, y, colYellow, colDef, "Meters:")
-	
+
 	// Convert linear to dB for display
 	linToDB := func(l float64) float64 {
-		if l <= 1e-9 { return -96.0 } // Lower noise floor
+		if l <= 1e-9 {
+			return -96.0
+		} // Lower noise floor
 		return 20 * math.Log10(l)
 	}
-	
+
 	inL := linToDB(meters.InputL)
 	inR := linToDB(meters.InputR)
 	outL := linToDB(meters.OutputL)
 	outR := linToDB(meters.OutputR)
-	grL := linToDB(meters.GainReductionL) 
+	grL := linToDB(meters.GainReductionL)
 	grR := linToDB(meters.GainReductionR)
 
 	drawMeter(2, y+2, "In L ", inL, colGreen)
 	drawMeter(2, y+3, "In R ", inR, colGreen)
-	
-	grL_disp := -grL 
+
+	grL_disp := -grL
 	grR_disp := -grR
-	if grL_disp < 0 { grL_disp = 0 }
-	if grR_disp < 0 { grR_disp = 0 }
+
+	if grL_disp < 0 {
+		grL_disp = 0
+	}
+
+	if grR_disp < 0 {
+		grR_disp = 0
+	}
 
 	drawMeter(2, y+5, "GR L ", grL_disp, colRed)
 	drawMeter(2, y+6, "GR R ", grR_disp, colRed)
@@ -221,40 +271,52 @@ func draw(s *TUIState) {
 }
 
 func drawMeter(x, y int, label string, db float64, color termbox.Attribute) {
-	// Range -96 to +6 for levels. 
+	// Range -96 to +6 for levels.
 	// 0 to 30 for GR.
-	
 	barWidth := 60
 	filled := 0
-	
+
 	if color == colRed {
 		// GR logic: 0 to 24 dB range
 		// 0 dB = empty, 24 dB = full
 		ratio := db / 24.0
-		if ratio > 1 { ratio = 1 }
+		if ratio > 1 {
+			ratio = 1
+		}
+
 		filled = int(ratio * float64(barWidth))
 	} else {
 		// Level logic: -96 to 6 dB range
 		minDB := -96.0
 		maxDB := 6.0
-		if db < minDB { db = minDB }
-		if db > maxDB { db = maxDB }
+
+		if db < minDB {
+			db = minDB
+		}
+
+		if db > maxDB {
+			db = maxDB
+		}
+
 		ratio := (db - minDB) / (maxDB - minDB)
 		filled = int(ratio * float64(barWidth))
 	}
-	
+
 	printTB(x, y, colDef, colDef, fmt.Sprintf("%s [%-6.1f dB] ", label, db))
-	
+
 	// Draw bar
 	startX := x + 15
-	for i := 0; i < barWidth; i++ {
+
+	for i := range barWidth {
 		ch := ' '
 		bg := colDef
+
 		if i < filled {
 			ch = '█'
 		} else {
 			ch = '░'
 		}
+
 		termbox.SetCell(startX+i, y, ch, color, bg)
 	}
 }

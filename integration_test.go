@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// Test configuration constants
+// Test configuration constants.
 const (
 	testSampleRate   = 48000.0
 	testBufferSmall  = 256
@@ -27,7 +27,7 @@ const (
 	defaultRelease   = 100.0
 )
 
-// setupTestCompressor creates a fresh compressor instance with standard test parameters
+// setupTestCompressor creates a fresh compressor instance with standard test parameters.
 func setupTestCompressor() {
 	compressor = NewSoftKneeCompressor(testSampleRate, 2)
 	compressor.SetThreshold(defaultThreshold)
@@ -124,7 +124,7 @@ func TestIntegration_AboveThreshold_HasCompression(t *testing.T) {
 	inputCopy := append([]float32{}, buffer...)
 
 	// Process (need multiple buffers for attack to fully engage)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		processAudioBuffer(buffer)
 	}
 
@@ -164,7 +164,7 @@ func TestIntegration_CompressionRatio_Verification(t *testing.T) {
 	// Process multiple buffers to let attack envelope reach steady state
 	// Each buffer is a fresh copy of the signal
 	var buffer []float32
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		buffer = GenerateInterleavedStereoSine(SineWaveConfig{
 			Frequency:  testFreq1kHz,
 			Amplitude:  amplitude,
@@ -201,7 +201,7 @@ func TestIntegration_MakeupGain(t *testing.T) {
 
 	// Process multiple buffers to let attack reach steady state
 	var buffer []float32
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		buffer = GenerateInterleavedStereoSine(SineWaveConfig{
 			Frequency:  testFreq1kHz,
 			Amplitude:  amplitude,
@@ -240,7 +240,7 @@ func TestIntegration_StereoChannelIndependence_LeftOnly(t *testing.T) {
 	buffer := InterleaveChannels(left, right)
 
 	// Process multiple buffers
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		processAudioBuffer(buffer)
 	}
 
@@ -264,12 +264,13 @@ func TestIntegration_StereoChannelIndependence_DifferentSignals(t *testing.T) {
 	setupTestCompressor()
 
 	// Generate different amplitude signals on each channel
-	leftAmplitude := DBFSToLinear(-10.0) // Loud (above threshold)
+	leftAmplitude := DBFSToLinear(-10.0)  // Loud (above threshold)
 	rightAmplitude := DBFSToLinear(-30.0) // Quiet (below threshold)
 
 	// Process multiple fresh buffers to reach steady state
 	var buffer []float32
-	for i := 0; i < 20; i++ {
+
+	for range 20 {
 		left := GenerateSine(SineWaveConfig{
 			Frequency:  testFreq440Hz,
 			Amplitude:  leftAmplitude,
@@ -318,7 +319,7 @@ func TestIntegration_StereoPhaseCoherence(t *testing.T) {
 	}, testBufferLarge, 0.0) // 0.0 phase difference
 
 	// Process
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		processAudioBuffer(buffer)
 	}
 
@@ -327,11 +328,13 @@ func TestIntegration_StereoPhaseCoherence(t *testing.T) {
 
 	// Verify L and R are still identical (or very close)
 	maxDiff := float32(0.0)
+
 	for i := range leftOut {
 		diff := leftOut[i] - rightOut[i]
 		if diff < 0 {
 			diff = -diff
 		}
+
 		if diff > maxDiff {
 			maxDiff = diff
 		}
@@ -431,7 +434,7 @@ func TestIntegration_FullScaleSignal_NoClipping(t *testing.T) {
 	}, testBufferLarge, 0.0)
 
 	// Process multiple buffers
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		processAudioBuffer(buffer)
 	}
 
@@ -460,18 +463,20 @@ func TestIntegration_ParameterChangeMidStream(t *testing.T) {
 	}, testBufferMedium, 0.0)
 
 	// Process with initial parameters
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		processAudioBuffer(buffer)
 	}
+
 	rms1 := CalculateRMS(buffer)
 
 	// Change threshold mid-stream
 	compressor.SetThreshold(-30.0) // Much lower threshold = less compression
 
 	// Process more buffers
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		processAudioBuffer(buffer)
 	}
+
 	rms2 := CalculateRMS(buffer)
 
 	// Output should change (less compression with lower threshold)
@@ -501,7 +506,7 @@ func TestIntegration_RealisticBufferSizes(t *testing.T) {
 		}, size, 0.0)
 
 		// Process multiple times
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			processAudioBuffer(buffer)
 		}
 

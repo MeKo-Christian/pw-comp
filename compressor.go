@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 )
 
-// MeterStats holds current levels for UI
+// MeterStats holds current levels for UI.
 type MeterStats struct {
 	InputL         float64
 	InputR         float64
@@ -39,15 +39,15 @@ type SoftKneeCompressor struct {
 	releaseFactor float64   // Release coefficient
 
 	// Cached calculations
-	threshold        float64 // Linear threshold
-	thresholdRecip   float64 // 1 / threshold
-	kneeWidth        float64 // Knee width in linear
-	kneeUpper        float64 // Upper knee boundary
-	kneeLower        float64 // Lower knee boundary
-	makeupGainLin    float64 // Linear makeup gain
-	slopeRecip       float64 // 1 / ratio - 1 (for gain calculation)
-	sampleRate       float64 // Current sample rate
-	channels         int     // Number of audio channels
+	threshold      float64 // Linear threshold
+	thresholdRecip float64 // 1 / threshold
+	kneeWidth      float64 // Knee width in linear
+	kneeUpper      float64 // Upper knee boundary
+	kneeLower      float64 // Lower knee boundary
+	makeupGainLin  float64 // Linear makeup gain
+	slopeRecip     float64 // 1 / ratio - 1 (for gain calculation)
+	sampleRate     float64 // Current sample rate
+	channels       int     // Number of audio channels
 
 	// Metering (Atomic bits of float64 for lock-free UI reading)
 	inputPeakL      uint64
@@ -59,7 +59,7 @@ type SoftKneeCompressor struct {
 	processedBlocks uint64 // Atomic counter
 }
 
-// NewSoftKneeCompressor creates a new compressor with default settings
+// NewSoftKneeCompressor creates a new compressor with default settings.
 func NewSoftKneeCompressor(sampleRate float64, channels int) *SoftKneeCompressor {
 	c := &SoftKneeCompressor{
 		thresholdDB:     -20.0,
@@ -76,105 +76,120 @@ func NewSoftKneeCompressor(sampleRate float64, channels int) *SoftKneeCompressor
 		processedBlocks: 0,
 	}
 	c.updateParameters()
+
 	return c
 }
 
-// SetThreshold sets the compression threshold in dB
+// SetThreshold sets the compression threshold in dB.
 func (c *SoftKneeCompressor) SetThreshold(dB float64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	c.thresholdDB = dB
 	c.updateParameters()
 }
 
-// SetRatio sets the compression ratio
+// SetRatio sets the compression ratio.
 func (c *SoftKneeCompressor) SetRatio(ratio float64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	if ratio < 1.0 {
 		ratio = 1.0
 	}
+
 	c.ratio = ratio
 	c.updateParameters()
 }
 
-// SetKnee sets the soft knee width in dB
+// SetKnee sets the soft knee width in dB.
 func (c *SoftKneeCompressor) SetKnee(dB float64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	if dB < 0.0 {
 		dB = 0.0
 	}
+
 	c.kneeDB = dB
 	c.updateParameters()
 }
 
-// SetAttack sets the attack time in milliseconds
+// SetAttack sets the attack time in milliseconds.
 func (c *SoftKneeCompressor) SetAttack(ms float64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	if ms < 0.1 {
 		ms = 0.1
 	}
+
 	c.attackMs = ms
 	c.updateTimeConstants()
 }
 
-// SetRelease sets the release time in milliseconds
+// SetRelease sets the release time in milliseconds.
 func (c *SoftKneeCompressor) SetRelease(ms float64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	if ms < 1.0 {
 		ms = 1.0
 	}
+
 	c.releaseMs = ms
 	c.updateTimeConstants()
 }
 
-// SetMakeupGain sets the makeup gain in dB
+// SetMakeupGain sets the makeup gain in dB.
 func (c *SoftKneeCompressor) SetMakeupGain(dB float64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	c.makeupGainDB = dB
 	c.autoMakeup = false
 	c.updateParameters()
 }
 
-// SetAutoMakeup enables automatic makeup gain calculation
+// SetAutoMakeup enables automatic makeup gain calculation.
 func (c *SoftKneeCompressor) SetAutoMakeup(enable bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	c.autoMakeup = enable
 	c.updateParameters()
 }
 
-// SetBypass toggles bypass
+// SetBypass toggles bypass.
 func (c *SoftKneeCompressor) SetBypass(bypass bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	c.bypass = bypass
 }
 
-// SetSampleRate updates the sample rate and recalculates time constants
+// SetSampleRate updates the sample rate and recalculates time constants.
 func (c *SoftKneeCompressor) SetSampleRate(rate float64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	if rate <= 0.0 {
 		return
 	}
+
 	if c.sampleRate != rate {
 		c.sampleRate = rate
 		c.updateTimeConstants()
 	}
 }
 
-// updateTimeConstants recalculates attack and release coefficients (internal, assumes lock held)
+// updateTimeConstants recalculates attack and release coefficients (internal, assumes lock held).
 func (c *SoftKneeCompressor) updateTimeConstants() {
 	c.attackFactor = 1.0 - math.Exp(-math.Ln2/(c.attackMs*0.001*c.sampleRate))
 	c.releaseFactor = math.Exp(-math.Ln2 / (c.releaseMs * 0.001 * c.sampleRate))
 }
 
-// updateParameters recalculates all internal cached values (internal, assumes lock held)
+// updateParameters recalculates all internal cached values (internal, assumes lock held).
 func (c *SoftKneeCompressor) updateParameters() {
 	c.threshold = math.Pow(10.0, c.thresholdDB/20.0)
 	c.thresholdRecip = 1.0 / c.threshold
@@ -190,12 +205,13 @@ func (c *SoftKneeCompressor) updateParameters() {
 		gainReductionDB := c.thresholdDB * (1.0 - 1.0/c.ratio)
 		c.makeupGainDB = -gainReductionDB
 	}
+
 	c.makeupGainLin = math.Pow(10.0, c.makeupGainDB/20.0)
 	c.updateTimeConstants()
 }
 
 // ProcessSample processes a single sample (internal DSP logic, called by ProcessBlock)
-// Assumes caller holds lock or is single-threaded context (tests)
+// Assumes caller holds lock or is single-threaded context (tests).
 func (c *SoftKneeCompressor) processSampleInternal(sample float32, channel int) (float32, float64) {
 	if c.bypass {
 		return sample, 1.0
@@ -215,7 +231,7 @@ func (c *SoftKneeCompressor) processSampleInternal(sample float32, channel int) 
 	} else {
 		c.peak[channel] = inputLevel + (c.peak[channel]-inputLevel)*c.releaseFactor
 	}
-	
+
 	if math.IsNaN(c.peak[channel]) {
 		c.peak[channel] = 0 // Safety reset
 	}
@@ -224,21 +240,23 @@ func (c *SoftKneeCompressor) processSampleInternal(sample float32, channel int) 
 	if math.IsNaN(gain) {
 		gain = 1.0
 	}
-	
+
 	output := float32(float64(sample) * gain * c.makeupGainLin)
-	
+
 	return output, gain
 }
 
-// Public ProcessSample for tests (wraps internal with lock)
+// Public ProcessSample for tests (wraps internal with lock).
 func (c *SoftKneeCompressor) ProcessSample(sample float32, channel int) float32 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	out, _ := c.processSampleInternal(sample, channel)
+
 	return out
 }
 
-// ProcessBlock processes a slice of samples for a specific channel
+// ProcessBlock processes a slice of samples for a specific channel.
 func (c *SoftKneeCompressor) ProcessBlock(in []float32, out []float32, channel int) {
 	if channel < 0 || channel >= c.channels || len(in) != len(out) {
 		return
@@ -264,38 +282,40 @@ func (c *SoftKneeCompressor) ProcessBlock(in []float32, out []float32, channel i
 		}
 
 		processed, gain := c.processSampleInternal(in[i], channel)
-		
+
 		// NaN Check Output
 		if math.IsNaN(float64(processed)) || math.IsInf(float64(processed), 0) {
 			processed = 0
 		}
-		
+
 		out[i] = processed
 
 		absOut := math.Abs(float64(processed))
 		if absOut > maxOutput {
 			maxOutput = absOut
 		}
+
 		if gain < minGain {
 			minGain = gain
 		}
 	}
 
 	// Update atomic meters
-	if channel == 0 { // Left
+	switch channel {
+	case 0: // Left
 		atomic.StoreUint64(&c.inputPeakL, math.Float64bits(maxInput))
 		atomic.StoreUint64(&c.outputPeakL, math.Float64bits(maxOutput))
 		atomic.StoreUint64(&c.gainReductionL, math.Float64bits(minGain))
 		// Increment block counter (only on left channel to avoid double counting per stereo frame)
 		atomic.AddUint64(&c.processedBlocks, 1)
-	} else if channel == 1 { // Right
+	case 1: // Right
 		atomic.StoreUint64(&c.inputPeakR, math.Float64bits(maxInput))
 		atomic.StoreUint64(&c.outputPeakR, math.Float64bits(maxOutput))
 		atomic.StoreUint64(&c.gainReductionR, math.Float64bits(minGain))
 	}
 }
 
-// calculateGain computes the gain multiplier
+// calculateGain computes the gain multiplier.
 func (c *SoftKneeCompressor) calculateGain(peakLevel float64) float64 {
 	if peakLevel <= c.kneeLower {
 		return 1.0
@@ -305,20 +325,22 @@ func (c *SoftKneeCompressor) calculateGain(peakLevel float64) float64 {
 		kneePos := (peakLevel - c.kneeLower) / c.kneeWidth
 		smoothFactor := kneePos * kneePos * (3.0 - 2.0*kneePos)
 		compressedGain := math.Pow(c.threshold/c.kneeUpper, 1.0-1.0/c.ratio)
+
 		return 1.0 + (compressedGain-1.0)*smoothFactor
 	}
 }
 
-// Reset clears the internal state
+// Reset clears the internal state.
 func (c *SoftKneeCompressor) Reset() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	for i := range c.peak {
 		c.peak[i] = 0.0
 	}
 }
 
-// GetMeters returns current meter values safely
+// GetMeters returns current meter values safely.
 func (c *SoftKneeCompressor) GetMeters() MeterStats {
 	// Sample rate requires lock
 	c.mu.Lock()

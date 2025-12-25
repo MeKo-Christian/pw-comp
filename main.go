@@ -39,6 +39,7 @@ var (
 var compressor *SoftKneeCompressor
 
 // export log_from_c
+//
 //export log_from_c
 func log_from_c(msg *C.char) {
 	slog.Info("C-Side", "msg", C.GoString(msg))
@@ -93,6 +94,7 @@ func main() {
 	makeupGain := flag.Float64("makeup", 0.0, "Manual makeup gain in dB (0 = auto)")
 	autoMakeup := flag.Bool("auto-makeup", true, "Enable automatic makeup gain")
 	noTUI := flag.Bool("no-tui", false, "Disable interactive TUI")
+	debug := flag.Bool("debug", false, "Enable verbose PipeWire debug logging")
 	logFile := flag.String("log", "pw-comp.log", "Log file path")
 	showHelp := flag.Bool("help", false, "Show this help message")
 
@@ -109,7 +111,7 @@ func main() {
 	}
 
 	// Setup logging
-	file, err := os.OpenFile(*logFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	file, err := os.OpenFile(*logFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o666)
 	if err != nil {
 		fmt.Printf("Failed to open log file: %v\n", err)
 		os.Exit(1)
@@ -119,6 +121,10 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(file, nil))
 	slog.SetDefault(logger)
 	slog.Info("Starting pw-comp", "args", os.Args)
+
+	if *debug {
+		C.pw_debug = 1
+	}
 
 	// Initialize compressor with default settings
 	compressor = NewSoftKneeCompressor(float64(sampleRate), channels)
@@ -165,7 +171,7 @@ func main() {
 		fmt.Println("TUI disabled. Running in headless mode.")
 		fmt.Println("Log file:", *logFile)
 		fmt.Println("Press Ctrl+C to exit.")
-		
+
 		// Run in main thread
 		C.pw_main_loop_run(loop)
 	} else {
@@ -179,13 +185,13 @@ func main() {
 			C.pw_main_loop_run(loop)
 			slog.Info("PipeWire main loop exited")
 		}()
-		
+
 		// Give PipeWire a moment to start (optional)
 		time.Sleep(100 * time.Millisecond)
 
 		// Run TUI in main thread
 		runTUI(compressor)
-		
+
 		// When TUI returns, quit PipeWire loop
 		slog.Info("TUI exited, stopping PipeWire loop")
 		C.pw_main_loop_quit(loop)
