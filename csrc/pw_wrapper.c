@@ -9,6 +9,16 @@
 // Go function
 extern void process_channel_go(float *in, float *out, int samples, int sample_rate, int channel_index);
 
+// State listener callback
+static void on_state_changed(void *data, enum pw_filter_state old, enum pw_filter_state state, const char *error) {
+    fprintf(stderr, "Filter State Change: %s -> %s\n", 
+        pw_filter_state_as_string(old), 
+        pw_filter_state_as_string(state));
+    if (error) {
+        fprintf(stderr, "Filter Error: %s\n", error);
+    }
+}
+
 // Callback function for processing audio
 static void on_process(void *userdata, struct spa_io_position *position) {
     struct pw_filter_data *data = userdata;
@@ -28,25 +38,39 @@ static void on_process(void *userdata, struct spa_io_position *position) {
         struct pw_buffer *in_buf = pw_filter_dequeue_buffer(data->in_ports[i]->port);
         struct pw_buffer *out_buf = pw_filter_dequeue_buffer(data->out_ports[i]->port);
 
-        if (in_buf == NULL || out_buf == NULL) {
+        // If output port is not connected or has no buffer, we can't output anything.
+        // We still need to recycle input if we got it.
+        if (out_buf == NULL) {
             if (in_buf) pw_filter_queue_buffer(data->in_ports[i]->port, in_buf);
-            if (out_buf) pw_filter_queue_buffer(data->out_ports[i]->port, out_buf);
             continue;
         }
 
-        float *in = pw_filter_get_dsp_buffer(data->in_ports[i]->port, n_samples);
         float *out = pw_filter_get_dsp_buffer(data->out_ports[i]->port, n_samples);
-
-        if (in == NULL || out == NULL) {
-             pw_filter_queue_buffer(data->in_ports[i]->port, in_buf);
+        if (out == NULL) {
+             // Should not happen if out_buf is valid
              pw_filter_queue_buffer(data->out_ports[i]->port, out_buf);
+             if (in_buf) pw_filter_queue_buffer(data->in_ports[i]->port, in_buf);
              continue;
         }
 
-        // Call Go for this channel
-        process_channel_go(in, out, n_samples, (int)sample_rate, i);
+        float *in = NULL;
+        if (in_buf) {
+            in = pw_filter_get_dsp_buffer(data->in_ports[i]->port, n_samples);
+        }
 
-        pw_filter_queue_buffer(data->in_ports[i]->port, in_buf);
+        if (in) {
+            // Normal processing: In -> Out
+            process_channel_go(in, out, n_samples, (int)sample_rate, i);
+        } else {
+            // Missing input: Treat as silence.
+            // We fill output with zeros, then process it in-place.
+            // This ensures the compressor's internal state (envelopes) decay naturally
+            // and meters show silence instead of freezing.
+            memset(out, 0, n_samples * sizeof(float));
+            process_channel_go(out, out, n_samples, (int)sample_rate, i);
+        }
+
+        if (in_buf) pw_filter_queue_buffer(data->in_ports[i]->port, in_buf);
         pw_filter_queue_buffer(data->out_ports[i]->port, out_buf);
     }
 }
@@ -54,6 +78,7 @@ static void on_process(void *userdata, struct spa_io_position *position) {
 static const struct pw_filter_events filter_events = {
     PW_VERSION_FILTER_EVENTS,
     .process = on_process,
+    .state_changed = on_state_changed,
 };
 
 // Helper to get channel name/position
@@ -136,7 +161,7 @@ struct pw_filter_data* create_pipewire_filter(struct pw_main_loop *loop, int cha
             SPA_FORMAT_mediaType, SPA_POD_Id(SPA_MEDIA_TYPE_audio),
             SPA_FORMAT_mediaSubtype, SPA_POD_Id(SPA_MEDIA_SUBTYPE_raw),
             SPA_FORMAT_AUDIO_format, SPA_POD_Id(SPA_AUDIO_FORMAT_F32),
-            SPA_FORMAT_AUDIO_rate, SPA_POD_Int(0), // 0 means any rate is accepted
+            SPA_FORMAT_AUDIO_rate, SPA_POD_Int(0), 
             SPA_FORMAT_AUDIO_channels, SPA_POD_Int(1),
             SPA_FORMAT_AUDIO_position, SPA_POD_Array(sizeof(uint32_t), SPA_TYPE_Id, 1, positions),
             0);
@@ -153,8 +178,8 @@ struct pw_filter_data* create_pipewire_filter(struct pw_main_loop *loop, int cha
             sizeof(struct port_data),
             pw_properties_new(
                 PW_KEY_PORT_NAME, port_name,
-                PW_KEY_FORMAT_DSP, "32 bit float mono audio", // Explicit hint for tools
-                PW_KEY_MEDIA_TYPE, "Audio", // Redundant but safe
+                PW_KEY_FORMAT_DSP, "32 bit float mono audio",
+                PW_KEY_MEDIA_TYPE, "Audio",
                 NULL),
             params, 1);
 
@@ -168,7 +193,7 @@ struct pw_filter_data* create_pipewire_filter(struct pw_main_loop *loop, int cha
             sizeof(struct port_data),
             pw_properties_new(
                 PW_KEY_PORT_NAME, port_name,
-                PW_KEY_FORMAT_DSP, "32 bit float mono audio", // Explicit hint for tools
+                PW_KEY_FORMAT_DSP, "32 bit float mono audio",
                 PW_KEY_MEDIA_TYPE, "Audio",
                 NULL),
             params, 1);
