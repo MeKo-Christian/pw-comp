@@ -1,0 +1,47 @@
+version = '2'
+
+[linters]
+default = 'all'
+disable = [
+  'depguard',
+  'exhaustive',
+  'exhaustruct',
+  'godox',
+  'ireturn',
+  'mnd',
+  'musttag',
+  'nlreturn',
+  'wsl',
+]
+enable = ['wsl_v5']
+
+[linters.settings]
+[linters.settings.varnamelen]
+ignore-names = ['i', 'j', 'n', 'ok', 'db', 'id']
+
+[linters.settings.wsl_v5]
+allow-first-in-block = true
+allow-whole-block = false
+branch-max-lines = 2
+disable = ['decl']
+
+[linters.exclusions]
+generated = 'lax'
+presets = ['comments', 'common-false-positives', 'legacy', 'std-error-handling']
+
+[[linters.exclusions.rules]]
+linters = ['gosec']
+text = 'G601:'
+
+[severity]
+default = 'warn'
+
+[[severity.rules]]
+linters = ['exhaustive', 'exhaustruct', 'godox']
+severity = 'info'
+
+[formatters]
+enable = ['gci', 'gofumpt', 'goimports']
+
+[formatters.exclusions]
+generated = 'lax'

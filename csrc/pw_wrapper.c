@@ -9,6 +9,7 @@
 // Go function
 extern void process_channel_go(float *in, float *out, int samples, int sample_rate, int channel_index);
 extern void log_from_c(char *msg);
+int pw_debug = 0;
 
 // State listener callback
 static void on_state_changed(void *data, enum pw_filter_state old, enum pw_filter_state state, const char *error) {
@@ -27,11 +28,19 @@ static void on_state_changed(void *data, enum pw_filter_state old, enum pw_filte
 static void on_add_buffer(void *data, void *port_data, struct pw_buffer *buffer) {
     struct port_data *port = port_data;
 
-    if (!port || port->direction != PW_DIRECTION_OUTPUT || !buffer) {
+    if (!port || !buffer) {
         return;
     }
 
-    // Queue output buffers as soon as PipeWire creates them.
+    if (pw_debug) {
+        char msg[128];
+        snprintf(msg, sizeof(msg), "Add buffer: dir=%s ch=%d buf=%p",
+            port->direction == PW_DIRECTION_INPUT ? "in" : "out",
+            port->channel, buffer);
+        log_from_c(msg);
+    }
+
+    // Queue buffers as soon as PipeWire creates them.
     pw_filter_queue_buffer(port_data, buffer);
 }
 
@@ -51,7 +60,7 @@ static void on_process(void *userdata, struct spa_io_position *position) {
         return;
     }
     
-    if (process_cnt < 20 || process_cnt % 100 == 0) {
+    if (pw_debug && (process_cnt < 20 || process_cnt % 100 == 0)) {
         char msg[128];
         snprintf(msg, sizeof(msg), "Process %d: samples=%u rate=%u", process_cnt, n_samples, sample_rate);
         log_from_c(msg);
@@ -62,14 +71,14 @@ static void on_process(void *userdata, struct spa_io_position *position) {
         struct pw_buffer *in_buf = pw_filter_dequeue_buffer(data->in_ports[i]);
         struct pw_buffer *out_buf = pw_filter_dequeue_buffer(data->out_ports[i]);
         
-        if (process_cnt < 20) {
+        if (pw_debug && process_cnt < 20) {
             char msg[128];
             snprintf(msg, sizeof(msg), "  CH%d: in=%p out=%p", i, in_buf, out_buf);
             log_from_c(msg);
         }
 
         if (out_buf == NULL) {
-            if (process_cnt < 50 && process_cnt % 10 == 0) {
+            if (pw_debug && process_cnt < 50 && process_cnt % 10 == 0) {
                  char msg[128];
                  snprintf(msg, sizeof(msg), "WARNING: CH%d Output buffer is NULL (Unconnected?)", i);
                  log_from_c(msg);
@@ -78,7 +87,25 @@ static void on_process(void *userdata, struct spa_io_position *position) {
             continue;
         }
 
-        float *out = pw_filter_get_dsp_buffer(data->out_ports[i], n_samples);
+        uint32_t out_samples = n_samples;
+        if (out_buf->buffer && out_buf->buffer->n_datas > 0) {
+            uint32_t max_bytes = out_buf->buffer->datas[0].maxsize;
+            if (max_bytes > 0) {
+                uint32_t max_samples = max_bytes / sizeof(float);
+                if (out_samples > max_samples) {
+                    out_samples = max_samples;
+                }
+            }
+        }
+
+        float *out = pw_filter_get_dsp_buffer(data->out_ports[i], out_samples);
+        if (out == NULL && out_buf && out_buf->buffer && out_buf->buffer->n_datas > 0) {
+            struct spa_data *d = &out_buf->buffer->datas[0];
+            if (d->data && (d->flags & SPA_DATA_FLAG_WRITABLE)) {
+                uint32_t offset = d->chunk ? d->chunk->offset : 0;
+                out = (float *)((uint8_t *)d->data + offset);
+            }
+        }
         if (out == NULL) {
              pw_filter_queue_buffer(data->out_ports[i], out_buf);
              if (in_buf) pw_filter_queue_buffer(data->in_ports[i], in_buf);
@@ -86,15 +113,50 @@ static void on_process(void *userdata, struct spa_io_position *position) {
         }
 
         float *in = NULL;
-        if (in_buf) {
-            in = pw_filter_get_dsp_buffer(data->in_ports[i], n_samples);
+        uint32_t in_samples = out_samples;
+        struct spa_chunk *in_chunk = NULL;
+        uint32_t in_max_bytes = 0;
+        if (in_buf && in_buf->buffer && in_buf->buffer->n_datas > 0) {
+            in_chunk = in_buf->buffer->datas[0].chunk;
+            if (in_chunk && in_chunk->size > 0) {
+                uint32_t chunk_samples = in_chunk->size / sizeof(float);
+                if (chunk_samples > 0 && chunk_samples < in_samples) {
+                    in_samples = chunk_samples;
+                }
+            }
+            in_max_bytes = in_buf->buffer->datas[0].maxsize;
+            if (in_max_bytes > 0) {
+                uint32_t max_samples = in_max_bytes / sizeof(float);
+                if (in_samples > max_samples) {
+                    in_samples = max_samples;
+                }
+            }
+        }
+        if (in_buf && in_samples > 0) {
+            in = pw_filter_get_dsp_buffer(data->in_ports[i], in_samples);
+            if (in == NULL && in_buf->buffer && in_buf->buffer->n_datas > 0) {
+                struct spa_data *d = &in_buf->buffer->datas[0];
+                if (d->data && (d->flags & SPA_DATA_FLAG_READABLE)) {
+                    uint32_t offset = d->chunk ? d->chunk->offset : 0;
+                    in = (float *)((uint8_t *)d->data + offset);
+                }
+            }
         }
 
         if (in) {
-            process_channel_go(in, out, n_samples, (int)sample_rate, i);
+            process_channel_go(in, out, (int)in_samples, (int)sample_rate, i);
         } else {
-            memset(out, 0, n_samples * sizeof(float));
-            process_channel_go(out, out, n_samples, (int)sample_rate, i);
+            memset(out, 0, out_samples * sizeof(float));
+            process_channel_go(out, out, (int)out_samples, (int)sample_rate, i);
+        }
+
+        // Output buffers need a valid size for downstream to consume them.
+        out_buf->size = out_samples;
+        if (out_buf->buffer && out_buf->buffer->datas[0].chunk) {
+            out_buf->buffer->datas[0].chunk->offset = 0;
+            out_buf->buffer->datas[0].chunk->size = out_samples * sizeof(float);
+            out_buf->buffer->datas[0].chunk->stride = sizeof(float);
+            out_buf->buffer->datas[0].chunk->flags = 0;
         }
 
         if (in_buf) pw_filter_queue_buffer(data->in_ports[i], in_buf);
@@ -145,10 +207,14 @@ struct pw_filter_data* create_pipewire_filter(struct pw_main_loop *loop, int cha
         return NULL;
     }
 
+    char channels_str[16];
+    snprintf(channels_str, sizeof(channels_str), "%d", channels);
     struct pw_properties *props = pw_properties_new(
         PW_KEY_MEDIA_TYPE, "Audio",
         PW_KEY_MEDIA_CATEGORY, "Filter",
         PW_KEY_MEDIA_ROLE, "DSP",
+        PW_KEY_MEDIA_CLASS, "Audio/Filter",
+        PW_KEY_AUDIO_CHANNELS, channels_str,
         PW_KEY_NODE_NAME, "pw-comp",
         PW_KEY_NODE_DESCRIPTION, "Audio Compressor Filter",
         NULL
@@ -173,6 +239,12 @@ struct pw_filter_data* create_pipewire_filter(struct pw_main_loop *loop, int cha
         char ch_name[32];
         uint32_t ch_pos;
         get_channel_config(i, channels, ch_name, sizeof(ch_name), &ch_pos);
+        const char *channel_prop = NULL;
+        if (channels == 2) {
+            channel_prop = (i == 0) ? "FL" : "FR";
+        } else if (channels == 1) {
+            channel_prop = "MONO";
+        }
 
         struct spa_pod_builder b = SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
         const struct spa_pod *params[1];
@@ -193,15 +265,20 @@ struct pw_filter_data* create_pipewire_filter(struct pw_main_loop *loop, int cha
         char port_name[64];
         
         snprintf(port_name, sizeof(port_name), "input_%s", ch_name);
+        struct pw_properties *in_props = pw_properties_new(
+            PW_KEY_PORT_NAME, port_name,
+            PW_KEY_FORMAT_DSP, "32 bit float mono audio",
+            PW_KEY_MEDIA_TYPE, "Audio",
+            NULL);
+        if (channel_prop) {
+            pw_properties_set(in_props, PW_KEY_AUDIO_CHANNEL, channel_prop);
+        }
+
         data->in_ports[i] = pw_filter_add_port(data->filter,
             PW_DIRECTION_INPUT,
             PW_FILTER_PORT_FLAG_MAP_BUFFERS,
             sizeof(struct port_data),
-            pw_properties_new(
-                PW_KEY_PORT_NAME, port_name,
-                PW_KEY_FORMAT_DSP, "32 bit float mono audio",
-                PW_KEY_MEDIA_TYPE, "Audio",
-                NULL),
+            in_props,
             params, 1);
 
         if (!data->in_ports[i]) {
@@ -213,15 +290,20 @@ struct pw_filter_data* create_pipewire_filter(struct pw_main_loop *loop, int cha
         data->in_ports[i]->channel = i;
 
         snprintf(port_name, sizeof(port_name), "output_%s", ch_name);
+        struct pw_properties *out_props = pw_properties_new(
+            PW_KEY_PORT_NAME, port_name,
+            PW_KEY_FORMAT_DSP, "32 bit float mono audio",
+            PW_KEY_MEDIA_TYPE, "Audio",
+            NULL);
+        if (channel_prop) {
+            pw_properties_set(out_props, PW_KEY_AUDIO_CHANNEL, channel_prop);
+        }
+
         data->out_ports[i] = pw_filter_add_port(data->filter,
             PW_DIRECTION_OUTPUT,
             PW_FILTER_PORT_FLAG_MAP_BUFFERS,
             sizeof(struct port_data),
-            pw_properties_new(
-                PW_KEY_PORT_NAME, port_name,
-                PW_KEY_FORMAT_DSP, "32 bit float mono audio",
-                PW_KEY_MEDIA_TYPE, "Audio",
-                NULL),
+            out_props,
             params, 1);
 
         if (!data->out_ports[i]) {

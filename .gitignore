@@ -38,3 +38,8 @@ csrc/*.o
 
 # Log files
 pw-comp.log
+*.log
+
+# Integration coverage
+integration_coverage.out
+integration_coverage.html
