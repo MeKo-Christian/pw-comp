@@ -161,7 +161,7 @@ struct pw_filter_data* create_pipewire_filter(struct pw_main_loop *loop, int cha
             SPA_FORMAT_mediaType, SPA_POD_Id(SPA_MEDIA_TYPE_audio),
             SPA_FORMAT_mediaSubtype, SPA_POD_Id(SPA_MEDIA_SUBTYPE_raw),
             SPA_FORMAT_AUDIO_format, SPA_POD_Id(SPA_AUDIO_FORMAT_F32),
-            SPA_FORMAT_AUDIO_rate, SPA_POD_Int(0), 
+            SPA_FORMAT_AUDIO_rate, SPA_POD_CHOICE_RANGE_Int(48000, 1, 384000), 
             SPA_FORMAT_AUDIO_channels, SPA_POD_Int(1),
             SPA_FORMAT_AUDIO_position, SPA_POD_Array(sizeof(uint32_t), SPA_TYPE_Id, 1, positions),
             0);
