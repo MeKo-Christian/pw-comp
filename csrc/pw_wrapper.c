@@ -24,6 +24,17 @@ static void on_state_changed(void *data, enum pw_filter_state old, enum pw_filte
     }
 }
 
+static void on_add_buffer(void *data, void *port_data, struct pw_buffer *buffer) {
+    struct port_data *port = port_data;
+
+    if (!port || port->direction != PW_DIRECTION_OUTPUT || !buffer) {
+        return;
+    }
+
+    // Queue output buffers as soon as PipeWire creates them.
+    pw_filter_queue_buffer(port_data, buffer);
+}
+
 // Callback function for processing audio
 static void on_process(void *userdata, struct spa_io_position *position) {
     struct pw_filter_data *data = userdata;
@@ -48,8 +59,8 @@ static void on_process(void *userdata, struct spa_io_position *position) {
 
     // Process each channel
     for (int i = 0; i < data->channels; i++) {
-        struct pw_buffer *in_buf = pw_filter_dequeue_buffer(data->in_ports[i]->port);
-        struct pw_buffer *out_buf = pw_filter_dequeue_buffer(data->out_ports[i]->port);
+        struct pw_buffer *in_buf = pw_filter_dequeue_buffer(data->in_ports[i]);
+        struct pw_buffer *out_buf = pw_filter_dequeue_buffer(data->out_ports[i]);
         
         if (process_cnt < 20) {
             char msg[128];
@@ -63,20 +74,20 @@ static void on_process(void *userdata, struct spa_io_position *position) {
                  snprintf(msg, sizeof(msg), "WARNING: CH%d Output buffer is NULL (Unconnected?)", i);
                  log_from_c(msg);
             }
-            if (in_buf) pw_filter_queue_buffer(data->in_ports[i]->port, in_buf);
+            if (in_buf) pw_filter_queue_buffer(data->in_ports[i], in_buf);
             continue;
         }
 
-        float *out = pw_filter_get_dsp_buffer(data->out_ports[i]->port, n_samples);
+        float *out = pw_filter_get_dsp_buffer(data->out_ports[i], n_samples);
         if (out == NULL) {
-             pw_filter_queue_buffer(data->out_ports[i]->port, out_buf);
-             if (in_buf) pw_filter_queue_buffer(data->in_ports[i]->port, in_buf);
+             pw_filter_queue_buffer(data->out_ports[i], out_buf);
+             if (in_buf) pw_filter_queue_buffer(data->in_ports[i], in_buf);
              continue;
         }
 
         float *in = NULL;
         if (in_buf) {
-            in = pw_filter_get_dsp_buffer(data->in_ports[i]->port, n_samples);
+            in = pw_filter_get_dsp_buffer(data->in_ports[i], n_samples);
         }
 
         if (in) {
@@ -86,8 +97,8 @@ static void on_process(void *userdata, struct spa_io_position *position) {
             process_channel_go(out, out, n_samples, (int)sample_rate, i);
         }
 
-        if (in_buf) pw_filter_queue_buffer(data->in_ports[i]->port, in_buf);
-        pw_filter_queue_buffer(data->out_ports[i]->port, out_buf);
+        if (in_buf) pw_filter_queue_buffer(data->in_ports[i], in_buf);
+        pw_filter_queue_buffer(data->out_ports[i], out_buf);
     }
 }
 
@@ -95,6 +106,7 @@ static const struct pw_filter_events filter_events = {
     PW_VERSION_FILTER_EVENTS,
     .process = on_process,
     .state_changed = on_state_changed,
+    .add_buffer = on_add_buffer,
 };
 
 // Helper to get channel name/position
@@ -102,10 +114,10 @@ static void get_channel_config(int i, int total, char *name, size_t max_len, uin
     if (total == 2) {
         if (i == 0) {
             snprintf(name, max_len, "FL");
-            *pos = SPA_AUDIO_CHANNEL_MONO;
+            *pos = SPA_AUDIO_CHANNEL_FL;
         } else {
             snprintf(name, max_len, "FR");
-            *pos = SPA_AUDIO_CHANNEL_MONO;
+            *pos = SPA_AUDIO_CHANNEL_FR;
         }
     } else if (total == 1) {
         snprintf(name, max_len, "MONO");
@@ -122,8 +134,6 @@ struct pw_filter_data* create_pipewire_filter(struct pw_main_loop *loop, int cha
     struct pw_filter_data *data = calloc(1, sizeof(struct pw_filter_data));
     data->loop = loop;
     data->channels = channels;
-
-    pw_init(NULL, NULL);
 
     data->context = pw_context_new(pw_main_loop_get_loop(loop), NULL, 0);
     if (!data->context) { free(data); return NULL; }
@@ -182,10 +192,8 @@ struct pw_filter_data* create_pipewire_filter(struct pw_main_loop *loop, int cha
 
         char port_name[64];
         
-        data->in_ports[i] = calloc(1, sizeof(struct port_data));
         snprintf(port_name, sizeof(port_name), "input_%s", ch_name);
-        
-        data->in_ports[i]->port = pw_filter_add_port(data->filter,
+        data->in_ports[i] = pw_filter_add_port(data->filter,
             PW_DIRECTION_INPUT,
             PW_FILTER_PORT_FLAG_MAP_BUFFERS,
             sizeof(struct port_data),
@@ -196,10 +204,16 @@ struct pw_filter_data* create_pipewire_filter(struct pw_main_loop *loop, int cha
                 NULL),
             params, 1);
 
-        data->out_ports[i] = calloc(1, sizeof(struct port_data));
-        snprintf(port_name, sizeof(port_name), "output_%s", ch_name);
+        if (!data->in_ports[i]) {
+            destroy_pipewire_filter(data);
+            return NULL;
+        }
 
-        data->out_ports[i]->port = pw_filter_add_port(data->filter,
+        data->in_ports[i]->direction = PW_DIRECTION_INPUT;
+        data->in_ports[i]->channel = i;
+
+        snprintf(port_name, sizeof(port_name), "output_%s", ch_name);
+        data->out_ports[i] = pw_filter_add_port(data->filter,
             PW_DIRECTION_OUTPUT,
             PW_FILTER_PORT_FLAG_MAP_BUFFERS,
             sizeof(struct port_data),
@@ -209,6 +223,14 @@ struct pw_filter_data* create_pipewire_filter(struct pw_main_loop *loop, int cha
                 PW_KEY_MEDIA_TYPE, "Audio",
                 NULL),
             params, 1);
+
+        if (!data->out_ports[i]) {
+            destroy_pipewire_filter(data);
+            return NULL;
+        }
+
+        data->out_ports[i]->direction = PW_DIRECTION_OUTPUT;
+        data->out_ports[i]->channel = i;
     }
 
     struct spa_pod_builder b_lat = SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
@@ -234,13 +256,7 @@ void destroy_pipewire_filter(struct pw_filter_data* data) {
     if (data->core) pw_core_disconnect(data->core);
     if (data->context) pw_context_destroy(data->context);
     
-    if (data->in_ports) {
-        for (int i=0; i<data->channels; i++) free(data->in_ports[i]);
-        free(data->in_ports);
-    }
-    if (data->out_ports) {
-        for (int i=0; i<data->channels; i++) free(data->out_ports[i]);
-        free(data->out_ports);
-    }
+    if (data->in_ports) free(data->in_ports);
+    if (data->out_ports) free(data->out_ports);
     free(data);
 }

@@ -16,7 +16,8 @@ extern void log_from_c(char *msg);
 
 // Structure to hold port-specific data
 struct port_data {
-    struct port *port;
+    enum pw_direction direction;
+    int channel;
 };
 
 // Structure to hold all PipeWire resources for filter lifecycle management
