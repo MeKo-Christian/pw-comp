@@ -1,5 +1,9 @@
 # PipeWire Audio Compressor (pw-comp)
 
+[![CI](https://github.com/MeKo-Christian/pw-comp/actions/workflows/test.yaml/badge.svg)](https://github.com/MeKo-Christian/pw-comp/actions/workflows/test.yaml)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/MeKo-Christian/pw-comp)](https://go.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 A real-time audio dynamic range compressor implemented in Go, using PipeWire for audio I/O.
 
 ## Overview
