@@ -212,4 +212,4 @@ Integration tests use mock signal generation to validate the complete processing
 
 ## License
 
-(License to be added)
+MIT License. See [LICENSE](LICENSE) for details.
