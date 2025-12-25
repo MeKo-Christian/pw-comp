@@ -319,15 +319,15 @@ func (c *SoftKneeCompressor) ProcessBlock(in []float32, out []float32, channel i
 func (c *SoftKneeCompressor) calculateGain(peakLevel float64) float64 {
 	if peakLevel <= c.kneeLower {
 		return 1.0
-	} else if peakLevel >= c.kneeUpper {
-		return math.Pow(c.threshold/peakLevel, 1.0-1.0/c.ratio)
-	} else {
-		kneePos := (peakLevel - c.kneeLower) / c.kneeWidth
-		smoothFactor := kneePos * kneePos * (3.0 - 2.0*kneePos)
-		compressedGain := math.Pow(c.threshold/c.kneeUpper, 1.0-1.0/c.ratio)
-
-		return 1.0 + (compressedGain-1.0)*smoothFactor
 	}
+	if peakLevel >= c.kneeUpper {
+		return math.Pow(c.threshold/peakLevel, 1.0-1.0/c.ratio)
+	}
+	kneePos := (peakLevel - c.kneeLower) / c.kneeWidth
+	smoothFactor := kneePos * kneePos * (3.0 - 2.0*kneePos)
+	compressedGain := math.Pow(c.threshold/c.kneeUpper, 1.0-1.0/c.ratio)
+
+	return 1.0 + (compressedGain-1.0)*smoothFactor
 }
 
 // Reset clears the internal state.

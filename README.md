@@ -125,6 +125,17 @@ Show all available options:
 
 The filter will appear as "Compressor" in PipeWire's audio graph and can be connected using tools like `pw-link` or `qpwgraph`.
 
+### Interactive Mode
+
+The compressor features a terminal-based UI for real-time parameter adjustment and metering:
+
+![Interactive Mode Screenshot](screenshot.png)
+
+- Use arrow keys to navigate and adjust parameters
+- Real-time input/output level meters (green/blue bars)
+- Gain reduction meters (red bars) show compression activity
+- Press `q` or `Esc` to quit
+
 ## Testing
 
 The project includes a comprehensive test suite covering both unit tests and integration tests.

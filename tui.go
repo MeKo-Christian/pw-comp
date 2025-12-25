@@ -39,6 +39,7 @@ var paramNames = []string{
 func runTUI(comp *SoftKneeCompressor) {
 	err := termbox.Init()
 	if err != nil {
+		//nolint:forbidigo // TUI initialization error requires direct output
 		fmt.Printf("Failed to initialize TUI: %v\n", err)
 		return
 	}
@@ -190,7 +191,7 @@ func handleKey(ev termbox.Event, s *TUIState) {
 }
 
 func draw(s *TUIState) {
-	termbox.Clear(colDef, colDef)
+	_ = termbox.Clear(colDef, colDef)
 
 	meters := s.comp.GetMeters()
 
@@ -309,7 +310,7 @@ func drawMeter(x, y int, label string, db float64, color termbox.Attribute) {
 	startX := x + 15
 
 	for i := range barWidth {
-		ch := ' '
+		var ch rune
 		bg := colDef
 
 		if i < filled {

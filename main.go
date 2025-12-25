@@ -29,13 +29,13 @@ import (
 	"unsafe"
 )
 
-// Audio configuration
+// Audio configuration.
 var (
 	channels   = 2     // Stereo (modify for 5.1, etc.)
 	sampleRate = 48000 // Default sample rate, will be updated by PipeWire
 )
 
-// Compressor instance
+// Compressor instance.
 var compressor *SoftKneeCompressor
 
 // export log_from_c
@@ -45,7 +45,7 @@ func log_from_c(msg *C.char) {
 	slog.Info("C-Side", "msg", C.GoString(msg))
 }
 
-// processAudioBuffer processes an INTERLEAVED audio buffer through the compressor (Go wrapper for tests)
+// processAudioBuffer processes an INTERLEAVED audio buffer through the compressor (Go wrapper for tests).
 func processAudioBuffer(audio []float32) {
 	if compressor == nil {
 		return
@@ -101,10 +101,15 @@ func main() {
 	flag.Parse()
 
 	if *showHelp {
+		//nolint:forbidigo // CLI help output requires fmt.Println
 		fmt.Println("PipeWire Audio Compressor (pw-comp)")
+		//nolint:forbidigo // CLI help output requires fmt.Println
 		fmt.Println("===================================")
+		//nolint:forbidigo // CLI help output requires fmt.Println
 		fmt.Println("\nA real-time audio dynamic range compressor for PipeWire.")
+		//nolint:forbidigo // CLI help output requires fmt.Println
 		fmt.Println("\nUsage: pw-comp [options]")
+		//nolint:forbidigo // CLI help output requires fmt.Println
 		fmt.Println("\nOptions:")
 		flag.PrintDefaults()
 		os.Exit(0)
@@ -113,6 +118,7 @@ func main() {
 	// Setup logging
 	file, err := os.OpenFile(*logFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o666)
 	if err != nil {
+		//nolint:forbidigo // error output before logging is initialized
 		fmt.Printf("Failed to open log file: %v\n", err)
 		os.Exit(1)
 	}
@@ -152,6 +158,7 @@ func main() {
 	loop := C.pw_main_loop_new(nil)
 	if loop == nil {
 		slog.Error("Failed to create PipeWire main loop")
+		//nolint:forbidigo // critical error output to user
 		fmt.Println("ERROR: Failed to create PipeWire main loop")
 		return
 	}
@@ -160,6 +167,7 @@ func main() {
 	filterData := C.create_pipewire_filter(loop, C.int(channels))
 	if filterData == nil {
 		slog.Error("Failed to create PipeWire filter")
+		//nolint:forbidigo // critical error output to user
 		fmt.Println("ERROR: Failed to create PipeWire filter")
 		C.pw_main_loop_destroy(loop)
 		return
@@ -167,9 +175,13 @@ func main() {
 	slog.Info("PipeWire filter created")
 
 	if *noTUI {
+		//nolint:forbidigo // headless mode startup message
 		fmt.Println("Starting PipeWire Audio Compressor (pw-comp)...")
+		//nolint:forbidigo // headless mode startup message
 		fmt.Println("TUI disabled. Running in headless mode.")
+		//nolint:forbidigo // headless mode startup message
 		fmt.Println("Log file:", *logFile)
+		//nolint:forbidigo // headless mode startup message
 		fmt.Println("Press Ctrl+C to exit.")
 
 		// Run in main thread
