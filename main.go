@@ -25,6 +25,7 @@ import (
 	"os"
 	"unsafe"
 	"time"
+	"sync"
 )
 
 // Audio configuration
@@ -141,8 +142,12 @@ func main() {
 		// Run in main thread
 		C.pw_main_loop_run(loop)
 	} else {
+		var wg sync.WaitGroup
+		wg.Add(1)
+
 		// Run PipeWire loop in background
 		go func() {
+			defer wg.Done()
 			C.pw_main_loop_run(loop)
 		}()
 		
@@ -150,10 +155,13 @@ func main() {
 		time.Sleep(100 * time.Millisecond)
 
 		// Run TUI in main thread
-	runTUI(compressor)
+		runTUI(compressor)
 		
 		// When TUI returns, quit PipeWire loop
 		C.pw_main_loop_quit(loop)
+
+		// Wait for PipeWire loop to finish cleaning up its internal state
+		wg.Wait()
 	}
 
 	// Cleanup

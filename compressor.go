@@ -8,12 +8,14 @@ import (
 
 // MeterStats holds current levels for UI
 type MeterStats struct {
-	InputL        float64
-	InputR        float64
-	OutputL       float64
-	OutputR       float64
+	InputL         float64
+	InputR         float64
+	OutputL        float64
+	OutputR        float64
 	GainReductionL float64
 	GainReductionR float64
+	Blocks         uint64
+	SampleRate     float64
 }
 
 // SoftKneeCompressor implements a professional-quality dynamics processor
@@ -48,28 +50,30 @@ type SoftKneeCompressor struct {
 	channels         int     // Number of audio channels
 
 	// Metering (Atomic bits of float64 for lock-free UI reading)
-	inputPeakL     uint64
-	inputPeakR     uint64
-	outputPeakL    uint64
-	outputPeakR    uint64
-	gainReductionL uint64
-	gainReductionR uint64
+	inputPeakL      uint64
+	inputPeakR      uint64
+	outputPeakL     uint64
+	outputPeakR     uint64
+	gainReductionL  uint64
+	gainReductionR  uint64
+	processedBlocks uint64 // Atomic counter
 }
 
 // NewSoftKneeCompressor creates a new compressor with default settings
 func NewSoftKneeCompressor(sampleRate float64, channels int) *SoftKneeCompressor {
 	c := &SoftKneeCompressor{
-		thresholdDB:  -20.0,
-		ratio:        4.0,
-		kneeDB:       6.0,
-		attackMs:     10.0,
-		releaseMs:    100.0,
-		makeupGainDB: 0.0,
-		autoMakeup:   true,
-		bypass:       false,
-		sampleRate:   sampleRate,
-		channels:     channels,
-		peak:         make([]float64, channels),
+		thresholdDB:     -20.0,
+		ratio:           4.0,
+		kneeDB:          6.0,
+		attackMs:        10.0,
+		releaseMs:       100.0,
+		makeupGainDB:    0.0,
+		autoMakeup:      true,
+		bypass:          false,
+		sampleRate:      sampleRate,
+		channels:        channels,
+		peak:            make([]float64, channels),
+		processedBlocks: 0,
 	}
 	c.updateParameters()
 	return c
@@ -196,7 +200,7 @@ func (c *SoftKneeCompressor) processSampleInternal(sample float32, channel int) 
 	if c.bypass {
 		return sample, 1.0
 	}
-	
+
 	if channel < 0 || channel >= c.channels {
 		return sample, 1.0
 	}
@@ -211,7 +215,7 @@ func (c *SoftKneeCompressor) processSampleInternal(sample float32, channel int) 
 
 	gain := c.calculateGain(c.peak[channel])
 	output := float32(float64(sample) * gain * c.makeupGainLin)
-	
+
 	return output, gain
 }
 
@@ -245,7 +249,7 @@ func (c *SoftKneeCompressor) ProcessBlock(in []float32, out []float32, channel i
 
 		processed, gain := c.processSampleInternal(in[i], channel)
 		out[i] = processed
-		
+
 		absOut := math.Abs(float64(processed))
 		if absOut > maxOutput {
 			maxOutput = absOut
@@ -256,11 +260,12 @@ func (c *SoftKneeCompressor) ProcessBlock(in []float32, out []float32, channel i
 	}
 
 	// Update atomic meters
-	// Store bits of float64
-	if channel == 0 { // Left (or Mono)
+	if channel == 0 { // Left
 		atomic.StoreUint64(&c.inputPeakL, math.Float64bits(maxInput))
 		atomic.StoreUint64(&c.outputPeakL, math.Float64bits(maxOutput))
 		atomic.StoreUint64(&c.gainReductionL, math.Float64bits(minGain))
+		// Increment block counter (only on left channel to avoid double counting per stereo frame)
+		atomic.AddUint64(&c.processedBlocks, 1)
 	} else if channel == 1 { // Right
 		atomic.StoreUint64(&c.inputPeakR, math.Float64bits(maxInput))
 		atomic.StoreUint64(&c.outputPeakR, math.Float64bits(maxOutput))
@@ -293,12 +298,19 @@ func (c *SoftKneeCompressor) Reset() {
 
 // GetMeters returns current meter values safely
 func (c *SoftKneeCompressor) GetMeters() MeterStats {
+	// Sample rate requires lock
+	c.mu.Lock()
+	sr := c.sampleRate
+	c.mu.Unlock()
+
 	return MeterStats{
-		InputL:        math.Float64frombits(atomic.LoadUint64(&c.inputPeakL)),
-		InputR:        math.Float64frombits(atomic.LoadUint64(&c.inputPeakR)),
-		OutputL:       math.Float64frombits(atomic.LoadUint64(&c.outputPeakL)),
-		OutputR:       math.Float64frombits(atomic.LoadUint64(&c.outputPeakR)),
+		InputL:         math.Float64frombits(atomic.LoadUint64(&c.inputPeakL)),
+		InputR:         math.Float64frombits(atomic.LoadUint64(&c.inputPeakR)),
+		OutputL:        math.Float64frombits(atomic.LoadUint64(&c.outputPeakL)),
+		OutputR:        math.Float64frombits(atomic.LoadUint64(&c.outputPeakR)),
 		GainReductionL: math.Float64frombits(atomic.LoadUint64(&c.gainReductionL)),
 		GainReductionR: math.Float64frombits(atomic.LoadUint64(&c.gainReductionR)),
+		Blocks:         atomic.LoadUint64(&c.processedBlocks),
+		SampleRate:     sr,
 	}
 }
