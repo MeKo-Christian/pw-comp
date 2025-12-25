@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"unsafe"
+	"time"
 )
 
 // Audio configuration
@@ -36,7 +37,6 @@ var (
 var compressor *SoftKneeCompressor
 
 // processAudioBuffer processes an INTERLEAVED audio buffer through the compressor (Go wrapper for tests)
-// This simulates the behavior of the old single-port implementation for testing purposes.
 func processAudioBuffer(audio []float32) {
 	if compressor == nil {
 		return
@@ -84,6 +84,7 @@ func main() {
 	release := flag.Float64("release", 100.0, "Release time in milliseconds")
 	makeupGain := flag.Float64("makeup", 0.0, "Manual makeup gain in dB (0 = auto)")
 	autoMakeup := flag.Bool("auto-makeup", true, "Enable automatic makeup gain")
+	noTUI := flag.Bool("no-tui", false, "Disable interactive TUI")
 	showHelp := flag.Bool("help", false, "Show this help message")
 
 	flag.Parse()
@@ -97,9 +98,6 @@ func main() {
 		flag.PrintDefaults()
 		os.Exit(0)
 	}
-
-	fmt.Println("Starting PipeWire Audio Compressor (pw-comp)...")
-	fmt.Println("==============================================")
 
 	// Initialize compressor with default settings
 	compressor = NewSoftKneeCompressor(float64(sampleRate), channels)
@@ -116,21 +114,6 @@ func main() {
 	} else {
 		compressor.SetAutoMakeup(*autoMakeup)
 	}
-
-	fmt.Println("Compressor Settings:")
-	fmt.Printf("  Threshold: %.1f dB\n", *threshold)
-	fmt.Printf("  Ratio: %.1f:1\n", *ratio)
-	fmt.Printf("  Knee: %.1f dB\n", *knee)
-	fmt.Printf("  Attack: %.1f ms\n", *attack)
-	fmt.Printf("  Release: %.1f ms\n", *release)
-	if *makeupGain != 0.0 {
-		fmt.Printf("  Makeup Gain: %.1f dB (manual)\n", *makeupGain)
-	} else {
-		fmt.Printf("  Makeup Gain: Auto\n")
-	}
-	fmt.Printf("  Channels: %d\n", channels)
-	fmt.Printf("  Sample Rate: Auto (Initial: %d Hz)\n", sampleRate)
-	fmt.Println("==============================================")
 
 	// Initialize PipeWire
 	C.pw_init(nil, nil)
@@ -150,11 +133,28 @@ func main() {
 		return
 	}
 
-	fmt.Println("\nINFO: Filter is active and ready for audio routing.")
-	fmt.Println("      Separate ports (FL, FR) should appear as standard Audio (Green) in graph tools.")
+	if *noTUI {
+		fmt.Println("Starting PipeWire Audio Compressor (pw-comp)...")
+		fmt.Println("TUI disabled. Running in headless mode.")
+		fmt.Println("Press Ctrl+C to exit.")
+		
+		// Run in main thread
+		C.pw_main_loop_run(loop)
+	} else {
+		// Run PipeWire loop in background
+		go func() {
+			C.pw_main_loop_run(loop)
+		}()
+		
+		// Give PipeWire a moment to start (optional)
+		time.Sleep(100 * time.Millisecond)
 
-	// Run the main loop
-	C.pw_main_loop_run(loop)
+		// Run TUI in main thread
+	runTUI(compressor)
+		
+		// When TUI returns, quit PipeWire loop
+		C.pw_main_loop_quit(loop)
+	}
 
 	// Cleanup
 	C.destroy_pipewire_filter(filterData)
