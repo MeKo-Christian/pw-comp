@@ -15,7 +15,7 @@ const (
 func DBToLinear(db float64) float64 {
 	// 10^(dB/20) = 2^(dB/20 * log2(10))
 	// log2(10) ≈ 3.32192809489
-	return math.Pow(2.0, db*0.166096404744) // 0.166096404744 = log2(10)/20
+	return math.Pow(2.0, db*log2Of10Div20)
 }
 
 // LinearToDB converts linear amplitude scale to decibels.

@@ -6,6 +6,12 @@ import (
 	"sync/atomic"
 )
 
+const (
+	// log2Of10Div20 is the conversion factor for dB to log2: log2(10) / 20
+	// Used for converting decibel values to log2 domain for fast approximation
+	log2Of10Div20 = 0.166096404744
+)
+
 // MeterStats holds current levels for UI.
 type MeterStats struct {
 	InputL         float64
@@ -41,7 +47,7 @@ type SoftKneeCompressor struct {
 	// Cached calculations
 	threshold      float64 // Linear threshold
 	thresholdRecip float64 // 1 / threshold
-	kneeFactor     float64 // Knee factor in dB² space: (kneeDB/ratio)²
+	kneeFactor     float64 // Knee factor in log2² space: (2*log2(10)/20 * kneeDB)²
 	makeupGainLin  float64 // Linear makeup gain
 	slopeRecip     float64 // 1 / ratio - 1 (for gain calculation)
 	sampleRate     float64 // Current sample rate
@@ -357,10 +363,10 @@ func (c *SoftKneeCompressor) updateParameters() {
 	// Calculate kneeFactor = (2 * log2(10)/20 * kneeDB)²
 	// This matches the Pascal implementation: Sqr(2 * CdBtoAmpExpGain32 * FKnee_dB)
 	// Working in log2 space, not dB space
-	kneeLog2 := 2.0 * 0.166096404744 * c.kneeDB // 0.166096404744 = log2(10) / 20
+	kneeLog2 := 2.0 * log2Of10Div20 * c.kneeDB
 	c.kneeFactor = kneeLog2 * kneeLog2
 
-	c.slopeRecip = 1.0/c.ratio - 1.0
+	c.slopeRecip = 1.0/c.ratio - 1.0 // Kept for future use or debugging
 
 	if c.autoMakeup {
 		gainReductionDB := c.thresholdDB * (1.0 - 1.0/c.ratio)
@@ -421,7 +427,7 @@ func (c *SoftKneeCompressor) calculateGain(peakLevel float64) float64 {
 
 	// Calculate log2 difference from threshold
 	// thresholdLog2 = thresholdDB * (log2(10)/20)
-	thresholdLog2 := c.thresholdDB * 0.166096404744 // 0.166096404744 = log2(10) / 20
+	thresholdLog2 := c.thresholdDB * log2Of10Div20
 
 	// Temp = thresholdLog2 - peakLog2 (Pascal: Temp := FThrshlddB - FastLog2(FPeak))
 	// When signal is above threshold, Temp will be negative
@@ -433,13 +439,20 @@ func (c *SoftKneeCompressor) calculateGain(peakLevel float64) float64 {
 		return 1.0
 	}
 
-	// Soft-knee formula in log2 domain (matches Pascal exactly)
+	// Soft-knee formula in log2 domain (based on Pascal limiter implementation)
 	// gain_log2 = 0.5 * (Temp - sqrt(Temp² + kneeFactor))
 	// Note: Temp is negative when above threshold, so this produces more negative values
 	// as the signal gets louder, resulting in more gain reduction
 	tempSq := temp * temp
 	sqrtTerm := FastSqrt(tempSq + c.kneeFactor)
 	gainLog2 := 0.5 * (temp - sqrtTerm)
+
+	// Apply compression ratio to the gain reduction
+	// The Pascal reference is a limiter (infinite ratio). To support variable ratios:
+	// - Ratio 1:1 → factor = 0.0 → no compression
+	// - Ratio 4:1 → factor = 0.75 → 75% of reduction
+	// - Ratio ∞:1 → factor = 1.0 → full reduction (limiter behavior)
+	gainLog2 *= (1.0 - 1.0/c.ratio)
 
 	// Convert back to linear using FastPower2
 	return FastPower2(gainLog2)
