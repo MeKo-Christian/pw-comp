@@ -28,6 +28,10 @@ setup-deps:
 fmt:
     treefmt --allow-missing-formatter
 
+# Check if code is formatted
+fmt-check:
+    treefmt --allow-missing-formatter --fail-on-change
+
 # Run linter
 lint:
     golangci-lint run --config ./.golangci.toml --timeout 2m

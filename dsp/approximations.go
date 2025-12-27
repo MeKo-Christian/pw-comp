@@ -41,3 +41,65 @@ func FastLog2(x float64) float64 {
 	// Note: exp-1 because Frexp returns mantissa in [0.5, 1.0) range
 	return float64(exp-1) + logMantissa
 }
+
+// Polynomial coefficients for 2^x approximation (3rd order minimum error).
+// These coefficients provide a fast power-of-2 approximation for the fractional part.
+//
+//nolint:gochecknoglobals // Mathematical constants used across all FastPower2 calls
+var cp2MinError3 = []float64{
+	0.693292707161004662,
+	0.242162975514835621,
+	0.0548668824216034384,
+}
+
+// FastPower2 computes 2^x using 3rd-order polynomial approximation.
+// This is significantly faster than math.Pow(2.0, x) with acceptable accuracy for audio DSP.
+//
+// The approximation works by:
+// 1. Splitting x into integer and fractional parts
+// 2. Computing 2^intPart using efficient bit shifting (math.Ldexp)
+// 3. Approximating 2^fracPart using a polynomial
+// 4. Combining: 2^x = 2^intPart * 2^fracPart.
+func FastPower2(x float64) float64 {
+	// Split into integer and fractional parts
+	intPart := int(math.Round(x))
+	fracPart := x - float64(intPart)
+
+	// Use bit shifting for integer part (very fast)
+	intResult := math.Ldexp(1.0, intPart) // Efficient 2^intPart
+
+	// Evaluate polynomial for fractional part using Horner's method
+	// poly(f) = 1 + f * (c0 + f * (c1 + f * c2))
+	polyResult := 1.0 + fracPart*(cp2MinError3[0]+
+		fracPart*(cp2MinError3[1]+fracPart*cp2MinError3[2]))
+
+	return intResult * polyResult
+}
+
+// FastSqrt computes sqrt(x) using Babylonian/Newton-Raphson method.
+// with bit manipulation for a fast initial guess.
+//
+// The approximation works by:
+// 1. Using bit manipulation to get an initial guess
+// 2. Performing two Newton-Raphson iterations for refinement
+// Formula: x_new = 0.5 * (x_old + value/x_old).
+func FastSqrt(x float64) float64 {
+	if x <= 0 {
+		return 0
+	}
+
+	// Get initial approximation via bit manipulation
+	// This exploits the IEEE 754 representation to estimate sqrt
+	bits := math.Float64bits(x)
+	bits = ((bits - (1 << 52)) >> 1) + (1 << 61)
+	result := math.Float64frombits(bits)
+
+	// Two Newton-Raphson iterations for refinement
+	// First iteration: standard formula
+	result = 0.5 * (result + x/result)
+
+	// Second iteration: apply the same formula again
+	result = 0.5 * (result + x/result)
+
+	return result
+}
