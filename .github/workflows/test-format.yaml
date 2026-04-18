@@ -38,5 +38,4 @@ jobs:
 
       - name: Check formatting
         run: |
-          just fmt
-          git diff --exit-code
+          just fmt-check
